@@ -1,0 +1,12 @@
+diff --git a/app.py b/app.py
+index 60e7c06..f598ef8 100644
+--- a/app.py
++++ b/app.py
+@@ -10,7 +10,6 @@ def calculate_total(items, tax_rate=0.08):
+     """
+     subtotal = sum(item["price"] * item["quantity"] for item in items)
+     total = subtotal + (subtotal * tax_rate)
+-    total = total + (subtotal * tax_rate)
+     return round(total, 2)
+ 
+ 
