@@ -270,25 +270,26 @@ def load_context():
         fail(f"could not read failure context: {error}")
 
 
-def refresh_context_from_failing_tests():
-    result = run_pytest_with_report()
-    if result.returncode == 0:
-        return True
-    rebuild = subprocess.run(
+def rebuild_context():
+    result = subprocess.run(
         ["python", "scripts/build_failure_context.py"],
         cwd=ROOT,
         capture_output=True,
         text=True,
     )
-    if rebuild.returncode != 0:
-        print(rebuild.stderr.strip(), file=sys.stderr)
-        fail("could not rebuild failure context after a failed repair attempt")
-    return False
+    if result.returncode != 0:
+        print(result.stderr.strip(), file=sys.stderr)
+        fail("could not rebuild failure context")
+    context = load_context()
+    if not context.get("failed_tests"):
+        fail("regenerated failure context contained no failing tests")
+    return context
 
 
 def repair_loop():
+    context = load_context()
     for attempt in range(1, MAX_REPAIR_ROUNDS + 1):
-        context = load_context()
+        print(f"Repair attempt {attempt} using {len(context.get('failed_tests', []))} failing tests.")
         allowed, edits = request_model_edits(context)
         originals = {}
         try:
@@ -299,7 +300,6 @@ def repair_loop():
             PATCH_PATH.unlink(missing_ok=True)
             fail(str(error))
 
-        print(f"Applied proposed patch on attempt {attempt}: {', '.join(sorted({Path(path).as_posix() for path in allowed}))}")
         test_result = run_pytest_with_report()
         if test_result.returncode == 0:
             print(f"All tests passed after repair attempt {attempt}.")
@@ -309,19 +309,8 @@ def repair_loop():
                     handle.write("applied=true\n")
             return
 
-        print(f"Attempt {attempt} still failed; regenerating context for another pass.", file=sys.stderr)
-        if not CONTEXT_PATH.exists():
-            rebuild = subprocess.run(
-                ["python", "scripts/build_failure_context.py"],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-            )
-            if rebuild.returncode != 0:
-                print(rebuild.stderr.strip(), file=sys.stderr)
-                fail("could not rebuild failure context after a failed repair attempt")
-        if not CONTEXT_PATH.exists():
-            fail("failure-context.json was not regenerated after a failed repair attempt")
+        print(f"Attempt {attempt} still failed; rebuilding failure context for the next pass.", file=sys.stderr)
+        context = rebuild_context()
 
     fail(f"repair attempts exhausted after {MAX_REPAIR_ROUNDS} rounds; the model could not satisfy the failing test suite")
 
