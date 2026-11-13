@@ -7,6 +7,7 @@ ROOT = Path.cwd().resolve()
 REPORT_PATH = ROOT / "pytest-report.json"
 COVERAGE_PATH = ROOT / ".coverage"
 OUTPUT_PATH = ROOT / "failure-context.json"
+PYTEST_OUTPUT_PATHS = (ROOT / "pytest-patch-output.txt", ROOT / "pytest-output.txt")
 MAX_CONTEXT_CHARS = 30000
 MAX_FILE_CHARS = 8000
 MAX_FAILED_TESTS = 3
@@ -72,8 +73,8 @@ def coverage_candidates(nodeid):
                     executed.append(line)
             if executed:
                 found[path] = sorted(executed)
-    except (OSError, Exception) as error:
-        # Import or coverage data issues should fall back to test imports, not hide diagnosis.
+    except Exception as error:
+        # Coverage issues should fall back to imports, not hide diagnosis.
         print(f"Coverage context lookup unavailable: {error}")
     return found
 
@@ -91,12 +92,52 @@ def source_entry(path, executed_lines=None):
     return entry
 
 
+def failure_message(item):
+    call = item.get("call") or {}
+    crash = call.get("crash") or {}
+    message = crash.get("message")
+    if message:
+        return str(message)
+    longrepr = item.get("longrepr")
+    if longrepr:
+        return str(longrepr)[:4000]
+    return "See pytest-output.txt or pytest-patch-output.txt for details."
+
+
+def collect_failures(report):
+    failures = [item for item in report.get("tests", []) if item.get("outcome") == "failed"]
+    # Collection errors can make pytest exit nonzero without any test outcome=failed.
+    for collector in report.get("collectors", []):
+        if collector.get("outcome") == "failed":
+            failures.append({
+                "nodeid": collector.get("nodeid", "pytest collection"),
+                "outcome": "failed",
+                "longrepr": collector.get("longrepr", "Test collection failed."),
+            })
+    return failures
+
+
+def pytest_diagnostic():
+    for path in PYTEST_OUTPUT_PATHS:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            continue
+        if text:
+            return text[-8000:]
+    return "Pytest exited nonzero, but its JSON report contained no failed test or collection entries."
+
+
 def main():
     if not REPORT_PATH.exists():
         raise SystemExit("pytest-report.json is missing; run pytest with --json-report first.")
 
-    report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
-    all_failures = [item for item in report.get("tests", []) if item.get("outcome") == "failed"]
+    try:
+        report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise SystemExit(f"Could not read pytest JSON report: {error}")
+
+    all_failures = collect_failures(report)
     failures = all_failures[:MAX_FAILED_TESTS]
     results = []
     budget = MAX_CONTEXT_CHARS
@@ -104,7 +145,7 @@ def main():
     for failure in failures:
         nodeid = failure.get("nodeid", "unknown test")
         test_file = test_path_from_nodeid(nodeid)
-        candidates = coverage_candidates(nodeid)
+        candidates = coverage_candidates(nodeid) if test_file else {}
         if not candidates and test_file:
             candidates = {path: [] for path in imported_project_files(test_file)}
 
@@ -118,7 +159,6 @@ def main():
             if entry and all(existing["path"] != entry["path"] for existing in files):
                 files.append(entry)
 
-        # Bound each failure context to keep prompts predictable for small local models.
         encoded_files = []
         for entry in files:
             serialized = json.dumps(entry, ensure_ascii=False)
@@ -135,7 +175,7 @@ def main():
 
         results.append({
             "test": nodeid,
-            "failure": failure.get("call", {}).get("crash", {}).get("message", "See pytest log."),
+            "failure": failure_message(failure),
             "candidate_source_files": encoded_files,
         })
         if budget <= 0:
@@ -149,8 +189,11 @@ def main():
             "total": len(all_failures),
             "remaining": max(0, len(all_failures) - len(results)),
         },
-        "context_note": "Coverage identifies files executed by each failed test; it does not prove which line caused the failure.",
+        "report_summary": report.get("summary", {}),
+        "context_note": "All selected failures are sent together in one repair request. Coverage identifies files executed by each failed test; it does not prove which line caused the failure.",
     }
+    if not results:
+        payload["diagnostic"] = pytest_diagnostic()
     OUTPUT_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
         f"Built source context for {len(results)} of {len(all_failures)} failed test(s) "
@@ -160,6 +203,8 @@ def main():
         print(f"- {failure['test']}: " + ", ".join(file["path"] for file in failure["candidate_source_files"]))
     if len(all_failures) > len(results):
         print(f"- {len(all_failures) - len(results)} failed test(s) remain for later repair rounds.")
+    if not results:
+        print("- No failed tests were present in the JSON report; included pytest diagnostics instead.")
 
 
 if __name__ == "__main__":
