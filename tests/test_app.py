@@ -1,6 +1,6 @@
 import pytest
 
-from app import calculate_total, format_currency, normalize_username
+from app import calculate_total, format_currency, normalize_username, sanitize_email
 
 
 def test_calculate_total_applies_tax_once():
@@ -18,6 +18,11 @@ def test_calculate_total_applies_tax_once_for_single_item():
 
 def test_normalize_username_strips_whitespace_and_lowercases():
     assert normalize_username("  Alice  ") == "alice"
+
+
+def test_sanitize_email_rejects_multiple_at_signs():
+    with pytest.raises(ValueError, match="invalid email"):
+        sanitize_email("alice@@example.com")
 
 
 def test_format_currency_uses_two_decimal_places():
