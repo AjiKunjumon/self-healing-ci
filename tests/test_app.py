@@ -1,6 +1,6 @@
 import pytest
 
-from app import calculate_total, format_currency
+from app import calculate_total, format_currency, normalize_username
 
 
 def test_calculate_total_applies_tax_once():
@@ -14,6 +14,10 @@ def test_calculate_total_applies_tax_once():
 def test_calculate_total_applies_tax_once_for_single_item():
     items = [{"price": 20.0, "quantity": 2}]
     assert calculate_total(items, tax_rate=0.10) == 44.00
+
+
+def test_normalize_username_strips_whitespace_and_lowercases():
+    assert normalize_username("  Alice  ") == "alice"
 
 
 def test_format_currency_uses_two_decimal_places():
