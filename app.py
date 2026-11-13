@@ -16,3 +16,16 @@ def calculate_total(items, tax_rate=0.08):
 
 def format_currency(amount):
     return f"${amount:.2f}"
+
+
+def normalize_username(username):
+    """Normalize a username by stripping whitespace and lowercasing it."""
+    return username.strip().lower()
+
+
+def sanitize_email(email):
+    """Return a canonicalized email address."""
+    if "@" not in email:
+        raise ValueError("invalid email")
+    local, domain = email.split("@", 1)
+    return f"{local.strip().lower()}@{domain.strip().lower()}"
