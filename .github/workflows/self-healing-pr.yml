@@ -91,6 +91,7 @@ jobs:
           exit 0
 
       - name: Open draft pull request for human review
+        id: draft_pr
         if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
         uses: peter-evans/create-pull-request@v7
         with:
@@ -123,8 +124,34 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Preserve failing baseline status
-        if: steps.baseline.outputs.status != '0'
+      - name: Summarize baseline and repair result
+        if: always()
+        shell: bash
+        env:
+          BASELINE_STATUS: ${{ steps.baseline.outputs.status }}
+          PATCH_APPLIED: ${{ steps.patch.outputs.applied }}
+          PATCHED_TEST_STATUS: ${{ steps.patched_tests.outputs.status }}
+          PR_NUMBER: ${{ steps.draft_pr.outputs.pull-request-number }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          echo "Baseline tests failed. Review diagnosis/artifacts and any draft PR; the original failure remains visible."
+          {
+            echo '## Self-healing CI result'
+            if [[ "$BASELINE_STATUS" == "0" ]]; then
+              echo '- Baseline tests: **passed**; no repair was needed.'
+            else
+              echo '- Baseline tests: **failed**; see `pytest-output.txt` and the uploaded review artifact.'
+            fi
+            if [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" == "0" && -n "$PR_NUMBER" ]]; then
+              echo '- Proposed repair tests: **passed**.'
+              echo "- Draft PR: [#$PR_NUMBER]($SERVER_URL/$REPOSITORY/pull/$PR_NUMBER) — human review required.'"
+            elif [[ "$BASELINE_STATUS" != "0" ]]; then
+              echo '- Repair outcome: **not completed successfully**. The workflow will remain failed; inspect the steps and artifact.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if baseline failure was not repaired and proposed
+        if: always() && steps.baseline.outputs.status != '0' && (steps.patch.outputs.applied != 'true' || steps.patched_tests.outputs.status != '0' || steps.draft_pr.outputs.pull-request-number == '')
+        run: |
+          echo "Baseline tests failed and a passing, created draft PR was not confirmed. See the summary and artifacts."
           exit 1
