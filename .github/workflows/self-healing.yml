@@ -58,8 +58,29 @@ jobs:
           OLLAMA_MODEL: llama3.2:1b
         run: python scripts/diagnose_failure.py
 
+      # Optional paid-provider alternative. Uncomment to use OpenAI instead of Ollama.
+      # Add OPENAI_API_KEY as a repository Actions secret and ensure API billing is enabled.
+      # - name: Diagnose failure with OpenAI
+      #   if: steps.tests.outputs.status != '0'
+      #   run: |
+      #     python -m pip install openai
+      #     python scripts/diagnose_failure_openai.py
+      #   env:
+      #     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      #     GITHUB_REPOSITORY: ${{ github.repository }}
+      #     GITHUB_SHA: ${{ github.sha }}
+
+      - name: Upload full diagnosis JSON
+        if: always() && steps.tests.outputs.status != '0' && hashFiles('ai-diagnosis.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-diagnosis
+          path: ai-diagnosis.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Fail the workflow after diagnosis
         if: steps.tests.outputs.status != '0'
         run: |
-          echo "The test suite failed. Review the diagnosis above."
+          echo "The test suite failed. Review the diagnosis summary and artifact above."
           exit 1
