@@ -4,12 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       create_draft_pr:
-        description: Propose a constrained repair and open a draft PR if the patched tests pass
+        description: Propose a constrained repair and open a draft PR if patched tests pass
         required: true
         type: boolean
         default: true
 
-# This workflow is not allowed to auto-merge. It is intentionally restricted to draft PRs.
 permissions:
   contents: write
   pull-requests: write
@@ -18,6 +17,8 @@ jobs:
   diagnose-and-propose:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    env:
+      OLLAMA_MODEL: qwen2.5:1.5b
     steps:
       - name: Check out selected branch
         uses: actions/checkout@v4
@@ -37,18 +38,13 @@ jobs:
         shell: bash
         run: |
           set +e
-          python -m pytest -q \
-            --cov=. \
-            --cov-context=test \
-            --cov-report= \
-            --json-report \
-            --json-report-file=pytest-report.json \
-            2>&1 | tee pytest-output.txt
+          python -m pytest -q --cov=. --cov-context=test --cov-report= \
+            --json-report --json-report-file=pytest-report.json 2>&1 | tee pytest-output.txt
           status=${PIPESTATUS[0]}
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Build dynamic source context
+      - name: Build compact failure context
         if: steps.baseline.outputs.status != '0'
         run: python scripts/build_failure_context.py
 
@@ -62,21 +58,18 @@ jobs:
             sleep 2
           done
           curl -fsS http://localhost:11434/api/tags > /dev/null || { cat /tmp/ollama.log; exit 1; }
-          ollama pull llama3.2:1b
+          ollama pull "$OLLAMA_MODEL"
 
       - name: Diagnose failure
         if: steps.baseline.outputs.status != '0'
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-          OLLAMA_MODEL: llama3.2:1b
         run: python scripts/diagnose_failure.py
 
       - name: Generate and apply allowlisted patch
         id: patch
         if: steps.baseline.outputs.status != '0' && inputs.create_draft_pr
-        env:
-          OLLAMA_MODEL: llama3.2:1b
         run: python scripts/propose_and_apply_patch.py
 
       - name: Re-run tests against proposed patch
@@ -104,9 +97,8 @@ jobs:
           body: |
             ## AI-proposed repair
 
-            This draft PR was created automatically after a self-healing CI run. The proposed change is limited to allowlisted application Python files and passed the regression test suite before the PR was opened.
-
-            **Human review is required.** Review the diff and diagnosis; passing tests do not prove the change is correct. Do not merge without normal project approval.
+            This draft PR was created after the proposed changes passed the regression suite.
+            Human review is required; passing tests do not prove the change is correct.
 
             Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
@@ -124,7 +116,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Summarize baseline and repair result
+      - name: Summarize and fail unless repair PR was created
         if: always()
         shell: bash
         env:
@@ -132,26 +124,17 @@ jobs:
           PATCH_APPLIED: ${{ steps.patch.outputs.applied }}
           PATCHED_TEST_STATUS: ${{ steps.patched_tests.outputs.status }}
           PR_NUMBER: ${{ steps.draft_pr.outputs.pull-request-number }}
-          SERVER_URL: ${{ github.server_url }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           {
             echo '## Self-healing CI result'
             if [[ "$BASELINE_STATUS" == "0" ]]; then
-              echo '- Baseline tests: **passed**; no repair was needed.'
+              echo '- Baseline tests passed; no repair was needed.'
+            elif [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" == "0" && -n "$PR_NUMBER" ]]; then
+              echo "- Proposed repair passed tests. Draft PR: #$PR_NUMBER (human review required)."
             else
-              echo '- Baseline tests: **failed**; see `pytest-output.txt` and the uploaded review artifact.'
-            fi
-            if [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" == "0" && -n "$PR_NUMBER" ]]; then
-              echo '- Proposed repair tests: **passed**.'
-              echo "- Draft PR: [#$PR_NUMBER]($SERVER_URL/$REPOSITORY/pull/$PR_NUMBER) — human review required.'"
-            elif [[ "$BASELINE_STATUS" != "0" ]]; then
-              echo '- Repair outcome: **not completed successfully**. The workflow will remain failed; inspect the steps and artifact.'
+              echo '- Repair was not completed successfully. See logs and uploaded artifact.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Fail if baseline failure was not repaired and proposed
-        if: always() && steps.baseline.outputs.status != '0' && (steps.patch.outputs.applied != 'true' || steps.patched_tests.outputs.status != '0' || steps.draft_pr.outputs.pull-request-number == '')
-        run: |
-          echo "Baseline tests failed and a passing, created draft PR was not confirmed. See the summary and artifacts."
-          exit 1
+          if [[ "$BASELINE_STATUS" != "0" && ( "$PATCH_APPLIED" != "true" || "$PATCHED_TEST_STATUS" != "0" || -z "$PR_NUMBER" ) ]]; then
+            exit 1
+          fi
