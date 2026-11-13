@@ -1,85 +1,60 @@
 # Self-Healing CI Demo
 
-This repository shows a realistic portfolio experiment: a GitHub Actions workflow runs tests, sends the failure to an OpenAI model, and explains the likely root cause and fix. The goal is to demonstrate a practical AI-for-dev workflow without giving the agent full control over the repo.
+This portfolio experiment shows an AI-assisted test-failure diagnosis workflow using a local Llama model through [Ollama](https://ollama.com/). It runs in GitHub Actions and does not require an OpenAI API key or paid model API. GitHub Actions runner time and bandwidth are still subject to your GitHub plan's limits.
 
-Why this is a good portfolio project:
-- It is easy to explain in one sentence.
-- It combines CI/CD, testing, and AI.
-- It shows real engineering thinking around safety and review.
-- It is reproducible and can be presented in a demo or live walk-through.
+## What it does
 
-## What the repo does
+1. GitHub Actions runs the Python tests.
+2. If a test fails, the workflow starts Ollama and downloads `llama3.2:1b`.
+3. The failure log is sent to the local Ollama server on that runner.
+4. The model's diagnosis is printed and saved as `ai-diagnosis.json`.
+5. The workflow ends as failed because the original test failed; it does not change code, open a PR, or merge anything.
 
-1. A test suite runs in GitHub Actions.
-2. If a test fails, the workflow captures the failing output.
-3. The failure details are sent to OpenAI.
-4. The model returns a likely diagnosis and a fix suggestion.
-5. The workflow prints the diagnosis for review and iteration.
+## Run the demo
 
-This is intentionally limited and safe: it does not auto-merge or auto-edit code. A human still reviews the result.
+1. Open the **Actions** tab and select **Self-healing CI**.
+2. Select **Run workflow** on the `main` branch.
+3. Open the run logs. The test should fail on the intentional double-tax bug, then the Ollama diagnosis step should run.
 
-## Example architecture
+No API key or repository secret is needed for this Ollama setup. The first run downloads the model (about 1.3 GB), which may take a few minutes. GitHub-hosted runner resources and usage limits apply.
 
-- GitHub Actions executes tests
-- Python app contains a tiny intentionally broken function
-- OpenAI API receives the failure log
-- AI diagnosis is saved in the workflow output
-
-## Local setup
+## Run tests locally
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-pytest -q
+python -m pip install -r requirements.txt
+python -m pytest -q
 ```
 
-## GitHub setup
+The tests are intentionally expected to fail until the double-tax bug in `app.py` is fixed. To try the diagnosis locally, install Ollama and download the same model:
 
-Create a GitHub Actions secret named `OPENAI_API_KEY`.
+```bash
+ollama pull llama3.2:1b
+ollama serve
+```
 
-In your repository:
-- Settings -> Secrets and variables -> Actions
-- Add secret: `OPENAI_API_KEY`
+In another terminal, run the tests and save their output, then run `python scripts/diagnose_failure.py` with `pytest-output.txt` present.
 
-## Repository structure
+## Architecture
 
 ```text
-.
-├── app.py
-├── requirements.txt
-├── tests/
-│   └── test_app.py
-├── scripts/
-│   └── diagnose_failure.py
-├── .github/
-│   └── workflows/
-│       └── self-healing.yml
-├── .gitignore
-└── README.md
+GitHub Actions runner
+  ├─ pytest ── failure log
+  ├─ Ollama + llama3.2:1b (local to that runner)
+  └─ diagnosis output (human-reviewed; no automatic code changes)
 ```
 
-## Demo flow
+## Safety and limitations
 
-1. The app contains a small, known bug.
-2. The test suite fails.
-3. The workflow triggers the AI diagnosis step.
-4. The output shows the likely fix.
-5. You can then manually patch the code and commit the change.
-
-## Safety notes
-
-- The workflow does not merge automatically.
-- The AI is only used to diagnose and suggest a fix.
-- No production credentials should be stored in the repo.
-- Use repository permissions and branch protections in a real team setup.
+- The model only receives the test output; this starter does not send source files or secrets.
+- The model's answer is a suggestion, not a verified repair.
+- The workflow does not modify repository files, create PRs, or auto-merge.
+- The small model may produce incomplete or incorrect diagnoses; review its output.
+- This uses a GitHub-hosted runner to run a local model. It avoids per-token API charges, but consumes runner time and downloads the model on runs that need diagnosis.
 
 ## Next upgrades
 
-- Add automatic PR creation for safe fixes.
-- Add a second provider option, such as Azure OpenAI or Anthropic.
-- Add a small evaluation harness to compare model diagnosis quality.
-- Add a stronger app with multiple failing scenarios.
-
-This repo is intentionally small, readable, and demo-friendly so it can be explained quickly in a job interview or portfolio review.
+- Add evaluation cases and track diagnosis quality.
+- Require human review before any proposed patch is opened as a PR.
+- Add strict patch validation and rerun tests before proposing changes.

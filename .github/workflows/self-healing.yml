@@ -32,17 +32,34 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Diagnose failure with OpenAI
+      - name: Install Ollama
+        if: steps.tests.outputs.status != '0'
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve > /tmp/ollama.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl -fsS http://localhost:11434/api/tags > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://localhost:11434/api/tags > /dev/null || {
+            cat /tmp/ollama.log
+            echo "Ollama did not start in time."
+            exit 1
+          }
+          ollama pull llama3.2:1b
+
+      - name: Diagnose failure with local Llama model
         if: steps.tests.outputs.status != '0'
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-        run: |
-          python scripts/diagnose_failure.py
+          OLLAMA_MODEL: llama3.2:1b
+        run: python scripts/diagnose_failure.py
 
       - name: Fail the workflow after diagnosis
         if: steps.tests.outputs.status != '0'
         run: |
-          echo "The test suite failed. Review the AI diagnosis output above."
+          echo "The test suite failed. Review the diagnosis above."
           exit 1
