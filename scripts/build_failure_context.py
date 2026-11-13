@@ -9,6 +9,7 @@ COVERAGE_PATH = ROOT / ".coverage"
 OUTPUT_PATH = ROOT / "failure-context.json"
 MAX_CONTEXT_CHARS = 30000
 MAX_FILE_CHARS = 8000
+MAX_FAILED_TESTS = 3
 EXCLUDED_PARTS = {".git", ".venv", "venv", "site-packages", "__pycache__"}
 
 
@@ -95,7 +96,8 @@ def main():
         raise SystemExit("pytest-report.json is missing; run pytest with --json-report first.")
 
     report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
-    failures = [item for item in report.get("tests", []) if item.get("outcome") == "failed"]
+    all_failures = [item for item in report.get("tests", []) if item.get("outcome") == "failed"]
+    failures = all_failures[:MAX_FAILED_TESTS]
     results = []
     budget = MAX_CONTEXT_CHARS
 
@@ -139,11 +141,25 @@ def main():
         if budget <= 0:
             break
 
-    payload = {"failed_tests": results, "context_note": "Coverage identifies files executed by each failed test; it does not prove which line caused the failure."}
+    payload = {
+        "failed_tests": results,
+        "failure_batch": {
+            "limit": MAX_FAILED_TESTS,
+            "selected": len(results),
+            "total": len(all_failures),
+            "remaining": max(0, len(all_failures) - len(results)),
+        },
+        "context_note": "Coverage identifies files executed by each failed test; it does not prove which line caused the failure.",
+    }
     OUTPUT_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    print(f"Built source context for {len(results)} failed test(s): {OUTPUT_PATH}")
+    print(
+        f"Built source context for {len(results)} of {len(all_failures)} failed test(s) "
+        f"(maximum {MAX_FAILED_TESTS} per repair round): {OUTPUT_PATH}"
+    )
     for failure in results:
         print(f"- {failure['test']}: " + ", ".join(file["path"] for file in failure["candidate_source_files"]))
+    if len(all_failures) > len(results):
+        print(f"- {len(all_failures) - len(results)} failed test(s) remain for later repair rounds.")
 
 
 if __name__ == "__main__":
