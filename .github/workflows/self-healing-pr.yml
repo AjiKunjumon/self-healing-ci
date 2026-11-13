@@ -1,0 +1,130 @@
+name: Self-healing CI - draft repair PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_draft_pr:
+        description: Propose a constrained repair and open a draft PR if the patched tests pass
+        required: true
+        type: boolean
+        default: false
+
+# This workflow is manual-only because it has write permissions. Do not add pull_request triggers.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  diagnose-and-propose:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out selected branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run baseline tests and collect per-test coverage
+        id: baseline
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q \
+            --cov=. \
+            --cov-context=test \
+            --cov-report= \
+            --json-report \
+            --json-report-file=pytest-report.json \
+            2>&1 | tee pytest-output.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Build dynamic source context
+        if: steps.baseline.outputs.status != '0'
+        run: python scripts/build_failure_context.py
+
+      - name: Install and start Ollama
+        if: steps.baseline.outputs.status != '0'
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve > /tmp/ollama.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl -fsS http://localhost:11434/api/tags > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:11434/api/tags > /dev/null || { cat /tmp/ollama.log; exit 1; }
+          ollama pull llama3.2:1b
+
+      - name: Diagnose failure
+        if: steps.baseline.outputs.status != '0'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          OLLAMA_MODEL: llama3.2:1b
+        run: python scripts/diagnose_failure.py
+
+      - name: Generate and apply allowlisted patch
+        id: patch
+        if: steps.baseline.outputs.status != '0' && inputs.create_draft_pr
+        env:
+          OLLAMA_MODEL: llama3.2:1b
+        run: python scripts/propose_and_apply_patch.py
+
+      - name: Re-run tests against proposed patch
+        id: patched_tests
+        if: steps.patch.outputs.applied == 'true'
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q 2>&1 | tee pytest-patch-output.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Open draft pull request for human review
+        if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ai-repair/${{ github.run_id }}
+          delete-branch: true
+          draft: true
+          title: "[AI proposal] Repair failing tests"
+          commit-message: "Propose AI-assisted fix for failing tests"
+          body: |
+            ## AI-proposed repair
+
+            This draft PR was created by a manually triggered self-healing CI run. The proposed change is limited to allowlisted application Python files and passed the test suite in the workflow before this PR was opened.
+
+            **Human review is required.** Review the diff and diagnosis; passing tests do not prove the change is correct. Do not merge without normal project approval.
+
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Upload diagnosis, context, and patch artifacts
+        if: always() && steps.baseline.outputs.status != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-repair-review-${{ github.run_id }}
+          path: |
+            ai-diagnosis.json
+            failure-context.json
+            ai-proposed.patch
+            pytest-output.txt
+            pytest-patch-output.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Preserve failing baseline status
+        if: steps.baseline.outputs.status != '0'
+        run: |
+          echo "Baseline tests failed. Review diagnosis/artifacts and any draft PR; the original failure remains visible."
+          exit 1
