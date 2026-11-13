@@ -22,15 +22,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Run tests with per-test coverage context
         id: tests
         shell: bash
         run: |
           set +e
-          python -m pytest -q 2>&1 | tee pytest-output.txt
+          python -m pytest -q \
+            --cov=. \
+            --cov-context=test \
+            --cov-report= \
+            --json-report \
+            --json-report-file=pytest-report.json \
+            2>&1 | tee pytest-output.txt
           status=${PIPESTATUS[0]}
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
+
+      - name: Build dynamic source context for failed tests
+        if: steps.tests.outputs.status != '0'
+        run: python scripts/build_failure_context.py
 
       - name: Install Ollama
         if: steps.tests.outputs.status != '0'
@@ -70,13 +80,15 @@ jobs:
       #     GITHUB_REPOSITORY: ${{ github.repository }}
       #     GITHUB_SHA: ${{ github.sha }}
 
-      - name: Upload full diagnosis JSON
-        if: always() && steps.tests.outputs.status != '0' && hashFiles('ai-diagnosis.json') != ''
+      - name: Upload diagnosis and failure context
+        if: always() && steps.tests.outputs.status != '0'
         uses: actions/upload-artifact@v4
         with:
           name: ai-diagnosis
-          path: ai-diagnosis.json
-          if-no-files-found: error
+          path: |
+            ai-diagnosis.json
+            failure-context.json
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Fail the workflow after diagnosis
