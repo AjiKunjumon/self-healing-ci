@@ -1,0 +1,48 @@
+name: Self-healing CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  test-and-diagnose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          pytest -q 2>&1 | tee pytest-output.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Diagnose failure with OpenAI
+        if: steps.tests.outputs.status != '0'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          python scripts/diagnose_failure.py
+
+      - name: Fail the workflow after diagnosis
+        if: steps.tests.outputs.status != '0'
+        run: |
+          echo "The test suite failed. Review the AI diagnosis output above."
+          exit 1
