@@ -4,7 +4,8 @@ import math
 def calculate_total(items, tax_rate=0.08):
     """Return the total price for a list of items, with tax applied once."""
     subtotal = sum(item["price"] * item["quantity"] for item in items)
-    return round(subtotal + (subtotal * tax_rate), 2)
+    total = subtotal + (subtotal * tax_rate)
+    return round(total, 2)
 
 
 def format_currency(amount):
