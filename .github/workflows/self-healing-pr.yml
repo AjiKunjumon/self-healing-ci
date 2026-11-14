@@ -87,7 +87,7 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Create repair PR with direct commit
+      - name: Create repair PR with clean commit
         id: draft_pr
         if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
         shell: bash
@@ -97,15 +97,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          # Reset all changes, then stage only source and test changes
-          git reset HEAD
-          git add app.py tests/
-          
-          # Create new branch for repair
+          # Create repair branch from main (clean slate)
           repair_branch="ai-repair/${{ github.run_id }}"
+          git checkout main
           git checkout -b "$repair_branch"
           
-          # Commit changes directly (no cherry-pick)
+          # Copy only app.py and tests/ from current branch
+          git show HEAD:app.py > app.py
+          git show HEAD:tests/test_app.py > tests/test_app.py
+          
+          # Stage only the source and test files
+          git add app.py tests/test_app.py
+          
+          # Commit changes
           git commit -m "Propose AI-assisted fix for failing tests"
           
           # Push branch
