@@ -1,37 +1,40 @@
 # Self-Healing CI Demo
 
-This portfolio experiment demonstrates AI-assisted Python test-failure diagnosis with a local Llama model through [Ollama](https://ollama.com/). It uses per-test coverage contexts to identify source files executed by each failing test, then provides the failed test, relevant source code, and pytest output to the model. It does not need a paid model API; GitHub Actions runner limits still apply.
+This portfolio project demonstrates AI-assisted Python test-failure diagnosis and optional repair proposals using local models through [Ollama](https://ollama.com/). It uses pytest's JSON report and per-test coverage context to connect failures to relevant source files.
 
-## What it does
+## Branch strategy
+
+- **`main` is the healthy baseline.** Keep its application code and tests passing. The workflow and model integration live here; do not commit intentional breakages to `main`.
+- **`test/self-healing-failure` is the sandbox/demo branch.** It contains deliberate test failures for exercising diagnosis and repair. Run the workflows against this branch when testing self-healing behavior. Do not merge the sandbox branch wholesale into `main`, because that can bring the intentionally broken application code and tests with it.
+- To promote workflow improvements, make a clean branch from `main` and cherry-pick or reapply only the workflow, scripts, and documentation changes. Leave intentional failure fixtures behind. Open a PR from that clean branch to `main`, confirm its tests pass, then merge through normal review.
+
+## What the diagnosis workflow does
 
 1. GitHub Actions runs tests and records pytest's JSON report plus per-test coverage contexts.
 2. If tests fail, a context builder maps each failed test to its test file and Python source files executed by that test. If coverage mapping is unavailable, it falls back to local imports found in the test file.
-3. Ollama runs `llama3.2:1b` locally on the runner and receives the failure log plus bounded source context.
-4. A concise diagnosis appears in the job log and run summary; the full response and selected source context are uploaded as artifacts.
-5. The regular workflow ends red when the baseline tests fail. It does not modify code or open PRs.
+3. Ollama runs the lightweight `llama3.2:1b` model for diagnosis, using the failure log and bounded source context.
+4. A diagnosis appears in the job log and run summary; failure context and diagnosis artifacts are uploaded for review.
+5. The regular diagnosis workflow does not modify code or open PRs. A failing baseline run remains failed so the regression is visible.
 
 ## Optional draft repair PR
 
-A separate workflow, **Self-healing CI - draft repair PR**, can generate a narrowly scoped patch and open a draft PR after the patched tests pass.
+The separate **Self-healing CI - draft repair PR** workflow can generate a constrained repair and open a draft PR when the proposed changes pass the full test suite.
 
 1. Open **Actions** and run **Self-healing CI - draft repair PR** manually.
-2. Select the branch to test. Enable `create_draft_pr` only when you want to attempt a repair proposal; it defaults to false.
-3. The workflow runs the baseline tests, diagnoses failures, and builds per-test source context.
-4. If enabled, Llama may propose a patch. A validator only allows edits to existing application `.py` files selected by the context builder. It refuses changes to tests, workflows, scripts, new files, renames, and paths outside the repository.
-5. The workflow applies the patch in its temporary checkout and reruns pytest. It opens a **draft** PR only if the patch applies, passes validation, and all tests pass.
-6. Review the diff and diagnosis yourself. The workflow does not merge changes.
+2. Select the branch to test. Use `test/self-healing-failure` to exercise the deliberate regression; use `main` for the passing baseline.
+3. Enable `create_draft_pr` only when you want to attempt a repair proposal.
+4. The workflow downloads and uses two models: `llama3.2:1b` (`DIAGNOSIS_MODEL`) for failure diagnosis and `qwen2.5-coder:7b` (`PATCH_MODEL`) for code repair. The coder model is larger because generating code edits benefits from a stronger model.
+5. The patch validator restricts edits to existing application Python files selected by the context builder. It refuses changes to tests, workflow files, scripts, and configuration.
+6. The workflow tests the proposal and creates a **draft** PR only when the patch is accepted and the full test suite passes. Human review is required; the workflow never merges automatically.
 
-The baseline test failure remains recorded as a failed workflow even when a repair PR is opened. A passing test run is not proof of correctness. Require normal human review and branch protection before merging; configure required approvals in the repository's rulesets/branch protection settings.
+The first run downloads both models (roughly 1.3 GB for the 7B coder model, plus the diagnosis model) and can take several minutes on a CPU-only GitHub-hosted runner. No Ollama API key or repository secret is required.
 
-The PR workflow is manual-only and has write permissions to create its branch and PR. Do not add `pull_request` triggers to that workflow. The normal diagnosis workflow remains separate.
+## Run the demo safely
 
-## Run the demo
-
-1. Open **Actions** and select **Self-healing CI**.
-2. Select **Run workflow** on `main`.
-3. Open the run. The intentional double-tax test should fail; inspect the diagnosis step and download the `ai-diagnosis` artifact.
-
-No API key or repository secret is needed for Ollama. The first failing run downloads the model (about 1.3 GB) and may take a few minutes.
+1. Keep `main` passing and use it as the source for production changes.
+2. Select `test/self-healing-failure` in the manual workflow to run the intentional failing-test scenario.
+3. Review the diagnosis and patch artifacts. If a repair PR is created, inspect it; do not merge without normal code review and passing CI.
+4. When promoting improvements to `main`, use a clean PR containing only the intended workflow, scripts, or documentation updates. Do not merge the sandbox branch wholesale.
 
 ## Run tests locally
 
@@ -43,17 +46,19 @@ python -m pytest -q --cov=. --cov-context=test --cov-report= --json-report --jso
 python scripts/build_failure_context.py
 ```
 
-Then, with Ollama installed and running, run:
+To run diagnosis locally with Ollama installed and running:
 
 ```bash
 ollama pull llama3.2:1b
-python scripts/diagnose_failure.py
+DIAGNOSIS_MODEL=llama3.2:1b python scripts/diagnose_failure.py
 ```
+
+For local patch generation, also pull the coder model and set `PATCH_MODEL=qwen2.5-coder:7b`.
 
 ## Safety and limitations
 
 - Only repository Python files associated with failed tests are included, with size limits. Review artifacts before sharing them; source code can contain sensitive material.
 - Coverage narrows candidate files but cannot prove causality. Import-based fallback is approximate.
-- The model's diagnosis and patch can be wrong; confidence is a model-generated label, not a calibrated probability.
-- Patch generation is opt-in and limited to selected application Python files. Tests must pass before a draft PR is created; all changes still require human review.
-- The workflow uses a GitHub-hosted runner and downloads Ollama/model on runs that need diagnosis.
+- Model diagnoses and patches can be wrong. Confidence labels are model-generated, not calibrated probabilities.
+- Patch generation is opt-in and limited to selected application Python files. A passing test suite does not prove correctness; all changes still require human review.
+- The workflow uses a GitHub-hosted runner and downloads the Ollama models when tests fail.
