@@ -151,6 +151,7 @@ jobs:
           PATCH_APPLIED: ${{ steps.patch.outputs.applied }}
           PATCHED_TEST_STATUS: ${{ steps.patched_tests.outputs.status }}
           PR_NUMBER: ${{ steps.draft_pr.outputs.pull-request-number }}
+          PR_STEP_OUTCOME: ${{ steps.draft_pr.outcome }}
         run: |
           {
             echo '## Self-healing CI result'
@@ -158,10 +159,12 @@ jobs:
               echo '- Baseline tests passed; no repair was needed.'
             elif [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" == "0" && -n "$PR_NUMBER" ]]; then
               echo "- Proposed repair passed tests. Draft PR: #$PR_NUMBER (human review required)."
+            elif [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" == "0" && "$PR_STEP_OUTCOME" == "success" ]]; then
+              echo '- Proposed repair passed tests; no PR was needed because it produced no changes relative to main.'
             else
               echo '- Repair was not completed successfully. See logs and uploaded artifact.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$BASELINE_STATUS" != "0" && ( "$PATCH_APPLIED" != "true" || "$PATCHED_TEST_STATUS" != "0" || -z "$PR_NUMBER" ) ]]; then
+          if [[ "$BASELINE_STATUS" != "0" && ( "$PATCH_APPLIED" != "true" || "$PATCHED_TEST_STATUS" != "0" || ( -z "$PR_NUMBER" && "$PR_STEP_OUTCOME" != "success" ) ) ]]; then
             exit 1
           fi
