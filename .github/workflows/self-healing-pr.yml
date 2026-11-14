@@ -97,7 +97,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          # Stage only source and test changes
+          # Reset all changes, then stage only source and test changes
+          git reset HEAD
           git add app.py tests/
           
           # Create new branch for repair
@@ -129,10 +130,10 @@ jobs:
               base: "main",
               body: `## AI-proposed repair
 
-            This draft PR includes the regression test changes from \`test/self-healing-failure\` and the proposed AI fix. The changes have passed the test suite.
-            Human review is required; passing tests do not prove the change is correct.
+This draft PR includes the regression test changes from \`test/self-healing-failure\` and the proposed AI fix. The changes have passed the test suite.
+Human review is required; passing tests do not prove the change is correct.
 
-            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
               draft: true
             });
             core.setOutput('pull-request-number', result.data.number);
