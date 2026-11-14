@@ -1,0 +1,55 @@
+{
+  "model": "qwen2.5-coder:7b",
+  "attempts": [
+    {
+      "repair": 1,
+      "group": "calculate_total",
+      "tests": [
+        "tests/test_app.py::test_calculate_total_applies_tax_once",
+        "tests/test_app.py::test_calculate_total_applies_tax_once_for_single_item"
+      ],
+      "retry": 1,
+      "status": "group_test_passed",
+      "changed_files": [
+        "app.py"
+      ]
+    },
+    {
+      "repair": 2,
+      "group": "sanitize_email",
+      "tests": [
+        "tests/test_app.py::test_sanitize_email_rejects_multiple_at_signs"
+      ],
+      "retry": 1,
+      "status": "patch_rejected_or_group_test_failed",
+      "error": "model proposed no source changes",
+      "failed_patch_saved": true
+    },
+    {
+      "repair": 2,
+      "group": "sanitize_email",
+      "tests": [
+        "tests/test_app.py::test_sanitize_email_rejects_multiple_at_signs"
+      ],
+      "retry": 2,
+      "status": "patch_rejected_or_group_test_failed",
+      "error": "model proposed no source changes",
+      "failed_patch_saved": true
+    },
+    {
+      "repair": 2,
+      "group": "sanitize_email",
+      "tests": [
+        "tests/test_app.py::test_sanitize_email_rejects_multiple_at_signs"
+      ],
+      "status": "deterministic_fallback_passed",
+      "fallback_reason": "model proposed no source changes",
+      "changed_files": [
+        "app.py"
+      ]
+    },
+    {
+      "status": "full_suite_passed"
+    }
+  ]
+}
