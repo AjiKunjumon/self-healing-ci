@@ -87,17 +87,6 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Clean up and stage changes for PR
-        if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Remove generated artifacts to avoid merge conflicts
-          rm -f ai-diagnosis.json failure-context.json ai-proposed.patch repair-metrics.json
-          rm -f pytest-report.json pytest-output.txt pytest-patch-output.txt
-          # Stage only application source and test changes
-          git add -A
-
       - name: Open draft pull request for human review
         id: draft_pr
         if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
@@ -108,8 +97,8 @@ jobs:
           branch: ai-repair/${{ github.run_id }}
           delete-branch: true
           draft: true
-          title: "[AI proposal] Repair failing tests"
           commit-message: "Propose AI-assisted fix for failing tests"
+          title: "[AI proposal] Repair failing tests"
           body: |
             ## AI-proposed repair
 
