@@ -95,6 +95,8 @@ jobs:
           branch: ai-repair/${{ github.run_id }}
           delete-branch: true
           draft: true
+          # Stage only the repaired application source; omit generated test and diagnosis artifacts.
+          add-paths: app.py
           title: "[AI proposal] Repair failing tests"
           commit-message: "Propose AI-assisted fix for failing tests"
           body: |
