@@ -1,0 +1,88 @@
+{
+  "failed_tests": [
+    {
+      "test": "tests/test_app.py::test_calculate_total_applies_tax_once",
+      "failure": "AssertionError: assert 42.34 == 39.42\n +  where 42.34 = calculate_total([{'price': 10.0, 'quantity': 2}, {'price': 5.5, 'quantity': 3}], tax_rate=0.08)",
+      "candidate_source_files": [
+        {
+          "path": "tests/test_app.py",
+          "source": "import pytest\n\nfrom app import calculate_total, format_currency, normalize_username, sanitize_email\n\n\ndef test_calculate_total_applies_tax_once():\n    items = [\n        {\"price\": 10.0, \"quantity\": 2},\n        {\"price\": 5.5, \"quantity\": 3},\n    ]\n    assert calculate_total(items, tax_rate=0.08) == 39.42\n\n\ndef test_calculate_total_applies_tax_once_for_single_item():\n    items = [{\"price\": 20.0, \"quantity\": 2}]\n    assert calculate_total(items, tax_rate=0.10) == 44.00\n\n\ndef test_normalize_username_strips_whitespace_and_lowercases():\n    assert normalize_username(\"  Alice  \") == \"alice\"\n\n\ndef test_sanitize_email_rejects_multiple_at_signs():\n    with pytest.raises(ValueError, match=\"invalid email\"):\n        sanitize_email(\"alice@@example.com\")\n\n\ndef test_format_currency_uses_two_decimal_places():\n    assert format_currency(12.5) == \"$12.50\"\n"
+        },
+        {
+          "path": "app.py",
+          "source": "import math\n\n\ndef calculate_total(items, tax_rate=0.08):\n    \"\"\"\n    Return the total price for a list of items.\n\n    This version includes a subtle bug: the tax is applied twice.\n    The test suite is intentionally designed to catch that.\n    \"\"\"\n    subtotal = sum(item[\"price\"] * item[\"quantity\"] for item in items)\n    total = subtotal + (subtotal * tax_rate)\n    total = total + (subtotal * tax_rate)\n    return round(total, 2)\n\n\ndef format_currency(amount):\n    return f\"${amount:.2f}\"\n\n\ndef normalize_username(username):\n    \"\"\"Normalize a username by stripping whitespace and lowercasing it.\"\"\"\n    return username.strip().lower()\n\n\ndef sanitize_email(email):\n    \"\"\"Return a canonicalized email address.\"\"\"\n    if \"@\" not in email:\n        raise ValueError(\"invalid email\")\n    local, domain = email.split(\"@\", 1)\n    return f\"{local.strip().lower()}@{domain.strip().lower()}\"\n",
+          "executed_lines_for_failed_test": [
+            11,
+            12,
+            13,
+            14
+          ]
+        }
+      ],
+      "group_id": "calculate_total"
+    },
+    {
+      "test": "tests/test_app.py::test_calculate_total_applies_tax_once_for_single_item",
+      "failure": "AssertionError: assert 48.0 == 44.0\n +  where 48.0 = calculate_total([{'price': 20.0, 'quantity': 2}], tax_rate=0.1)",
+      "candidate_source_files": [
+        {
+          "path": "tests/test_app.py",
+          "source": "import pytest\n\nfrom app import calculate_total, format_currency, normalize_username, sanitize_email\n\n\ndef test_calculate_total_applies_tax_once():\n    items = [\n        {\"price\": 10.0, \"quantity\": 2},\n        {\"price\": 5.5, \"quantity\": 3},\n    ]\n    assert calculate_total(items, tax_rate=0.08) == 39.42\n\n\ndef test_calculate_total_applies_tax_once_for_single_item():\n    items = [{\"price\": 20.0, \"quantity\": 2}]\n    assert calculate_total(items, tax_rate=0.10) == 44.00\n\n\ndef test_normalize_username_strips_whitespace_and_lowercases():\n    assert normalize_username(\"  Alice  \") == \"alice\"\n\n\ndef test_sanitize_email_rejects_multiple_at_signs():\n    with pytest.raises(ValueError, match=\"invalid email\"):\n        sanitize_email(\"alice@@example.com\")\n\n\ndef test_format_currency_uses_two_decimal_places():\n    assert format_currency(12.5) == \"$12.50\"\n"
+        },
+        {
+          "path": "app.py",
+          "source": "import math\n\n\ndef calculate_total(items, tax_rate=0.08):\n    \"\"\"\n    Return the total price for a list of items.\n\n    This version includes a subtle bug: the tax is applied twice.\n    The test suite is intentionally designed to catch that.\n    \"\"\"\n    subtotal = sum(item[\"price\"] * item[\"quantity\"] for item in items)\n    total = subtotal + (subtotal * tax_rate)\n    total = total + (subtotal * tax_rate)\n    return round(total, 2)\n\n\ndef format_currency(amount):\n    return f\"${amount:.2f}\"\n\n\ndef normalize_username(username):\n    \"\"\"Normalize a username by stripping whitespace and lowercasing it.\"\"\"\n    return username.strip().lower()\n\n\ndef sanitize_email(email):\n    \"\"\"Return a canonicalized email address.\"\"\"\n    if \"@\" not in email:\n        raise ValueError(\"invalid email\")\n    local, domain = email.split(\"@\", 1)\n    return f\"{local.strip().lower()}@{domain.strip().lower()}\"\n",
+          "executed_lines_for_failed_test": [
+            11,
+            12,
+            13,
+            14
+          ]
+        }
+      ],
+      "group_id": "calculate_total"
+    },
+    {
+      "test": "tests/test_app.py::test_sanitize_email_rejects_multiple_at_signs",
+      "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+      "candidate_source_files": [
+        {
+          "path": "tests/test_app.py",
+          "source": "import pytest\n\nfrom app import calculate_total, format_currency, normalize_username, sanitize_email\n\n\ndef test_calculate_total_applies_tax_once():\n    items = [\n        {\"price\": 10.0, \"quantity\": 2},\n        {\"price\": 5.5, \"quantity\": 3},\n    ]\n    assert calculate_total(items, tax_rate=0.08) == 39.42\n\n\ndef test_calculate_total_applies_tax_once_for_single_item():\n    items = [{\"price\": 20.0, \"quantity\": 2}]\n    assert calculate_total(items, tax_rate=0.10) == 44.00\n\n\ndef test_normalize_username_strips_whitespace_and_lowercases():\n    assert normalize_username(\"  Alice  \") == \"alice\"\n\n\ndef test_sanitize_email_rejects_multiple_at_signs():\n    with pytest.raises(ValueError, match=\"invalid email\"):\n        sanitize_email(\"alice@@example.com\")\n\n\ndef test_format_currency_uses_two_decimal_places():\n    assert format_currency(12.5) == \"$12.50\"\n"
+        },
+        {
+          "path": "app.py",
+          "source": "import math\n\n\ndef calculate_total(items, tax_rate=0.08):\n    \"\"\"\n    Return the total price for a list of items.\n\n    This version includes a subtle bug: the tax is applied twice.\n    The test suite is intentionally designed to catch that.\n    \"\"\"\n    subtotal = sum(item[\"price\"] * item[\"quantity\"] for item in items)\n    total = subtotal + (subtotal * tax_rate)\n    total = total + (subtotal * tax_rate)\n    return round(total, 2)\n\n\ndef format_currency(amount):\n    return f\"${amount:.2f}\"\n\n\ndef normalize_username(username):\n    \"\"\"Normalize a username by stripping whitespace and lowercasing it.\"\"\"\n    return username.strip().lower()\n\n\ndef sanitize_email(email):\n    \"\"\"Return a canonicalized email address.\"\"\"\n    if \"@\" not in email:\n        raise ValueError(\"invalid email\")\n    local, domain = email.split(\"@\", 1)\n    return f\"{local.strip().lower()}@{domain.strip().lower()}\"\n",
+          "executed_lines_for_failed_test": [
+            28,
+            30,
+            31
+          ]
+        }
+      ],
+      "group_id": "sanitize_email"
+    }
+  ],
+  "failure_groups": [
+    {
+      "group_id": "calculate_total",
+      "tests": [
+        "tests/test_app.py::test_calculate_total_applies_tax_once",
+        "tests/test_app.py::test_calculate_total_applies_tax_once_for_single_item"
+      ]
+    },
+    {
+      "group_id": "sanitize_email",
+      "tests": [
+        "tests/test_app.py::test_sanitize_email_rejects_multiple_at_signs"
+      ]
+    }
+  ],
+  "failure_batch": {
+    "limit": 3,
+    "selected": 3,
+    "total": 3,
+    "remaining": 0
+  },
+  "context_note": "At most three failures are included per repair round. Source and failure details are truncated to bound prompt size. Groups are heuristic buckets based on test-name target/function; they are not confirmed root causes."
+}
