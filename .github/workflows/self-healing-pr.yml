@@ -23,6 +23,28 @@ jobs:
     steps:
       - name: Check out selected branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Include test changes from test/self-healing-failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_ref="origin/test/self-healing-failure"
+          git fetch origin main test/self-healing-failure
+          git diff --name-only -z "origin/main...${test_ref}" -- tests test > "$RUNNER_TEMP/test-branch-paths"
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              tests/*|test/*) ;;
+              *) echo "Refusing non-test path from test branch: $path" >&2; exit 1 ;;
+            esac
+            if git cat-file -e "${test_ref}:${path}" 2>/dev/null; then
+              mkdir -p "$(dirname "$path")"
+              git show "${test_ref}:${path}" > "$path"
+            else
+              rm -f -- "$path"
+            fi
+          done < "$RUNNER_TEMP/test-branch-paths"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -100,7 +122,7 @@ jobs:
           body: |
             ## AI-proposed repair
 
-            This draft PR was created after the proposed changes passed the regression suite.
+            This draft PR includes the test changes from `test/self-healing-failure` and the proposed repair. It was created after the updated regression suite passed.
             Human review is required; passing tests do not prove the change is correct.
 
             Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
