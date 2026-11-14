@@ -18,7 +18,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      OLLAMA_MODEL: qwen2.5:1.5b
+      # Coding-tuned model is more reliable at emitting the constrained edit JSON.
+      OLLAMA_MODEL: qwen2.5-coder:3b
     steps:
       - name: Check out selected branch
         uses: actions/checkout@v4
