@@ -87,29 +87,56 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Stage all changes
-        if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
-        run: git add -A
-
-      - name: Open draft pull request for human review
+      - name: Create repair PR with direct commit
         id: draft_pr
         if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
-        uses: peter-evans/create-pull-request@v7
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Stage only source and test changes
+          git add app.py tests/
+          
+          # Create new branch for repair
+          repair_branch="ai-repair/${{ github.run_id }}"
+          git checkout -b "$repair_branch"
+          
+          # Commit changes directly (no cherry-pick)
+          git commit -m "Propose AI-assisted fix for failing tests"
+          
+          # Push branch
+          git push -u origin "$repair_branch"
+          
+          # Get current commit hash for PR creation reference
+          commit_sha=$(git rev-parse HEAD)
+          echo "pr_branch=$repair_branch" >> "$GITHUB_OUTPUT"
+          echo "pr_commit=$commit_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Create pull request
+        id: pr
+        if: steps.draft_pr.outputs.pr_branch != ''
+        uses: actions/github-script@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: main
-          branch: ai-repair/${{ github.run_id }}
-          delete-branch: true
-          draft: true
-          commit-message: "Propose AI-assisted fix for failing tests"
-          title: "[AI proposal] Repair failing tests"
-          body: |
-            ## AI-proposed repair
+          script: |
+            const result = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "[AI proposal] Repair failing tests",
+              head: "${{ steps.draft_pr.outputs.pr_branch }}",
+              base: "main",
+              body: `## AI-proposed repair
 
-            This draft PR includes the regression test changes from `test/self-healing-failure` and the proposed AI fix. The changes have passed the test suite.
-            Human review is required; passing tests do not prove the change is correct.
+This draft PR includes the regression test changes from \`test/self-healing-failure\` and the proposed AI fix. The changes have passed the test suite.
+Human review is required; passing tests do not prove the change is correct.
 
-            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              draft: true
+            });
+            core.setOutput('pull-request-number', result.data.number);
+            core.setOutput('pull-request-url', result.data.html_url);
 
       - name: Upload diagnosis, context, patch, metrics, and test artifacts
         if: always() && steps.baseline.outputs.status != '0'
@@ -134,7 +161,7 @@ jobs:
           BASELINE_STATUS: ${{ steps.baseline.outputs.status }}
           PATCH_APPLIED: ${{ steps.patch.outputs.applied }}
           PATCHED_TEST_STATUS: ${{ steps.patched_tests.outputs.status }}
-          PR_NUMBER: ${{ steps.draft_pr.outputs.pull-request-number }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
         run: |
           {
             echo '## Self-healing CI result'
