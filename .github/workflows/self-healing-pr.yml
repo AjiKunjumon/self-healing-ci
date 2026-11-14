@@ -18,8 +18,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      # Coding-tuned model is more reliable at emitting the constrained edit JSON.
-      OLLAMA_MODEL: qwen2.5-coder:3b
+      OLLAMA_MODEL: qwen2.5-coder:7b
     steps:
       - name: Check out selected branch
         uses: actions/checkout@v4
@@ -45,7 +44,7 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Build compact failure context
+      - name: Build dynamic source context
         if: steps.baseline.outputs.status != '0'
         run: python scripts/build_failure_context.py
 
@@ -68,7 +67,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: python scripts/diagnose_failure.py
 
-      - name: Generate and apply allowlisted patch
+      - name: Generate and apply allowlisted unified-diff patch
         id: patch
         if: steps.baseline.outputs.status != '0' && inputs.create_draft_pr
         run: python scripts/propose_and_apply_patch.py
@@ -103,7 +102,7 @@ jobs:
 
             Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-      - name: Upload diagnosis, context, and patch artifacts
+      - name: Upload diagnosis, context, patch, metrics, and test artifacts
         if: always() && steps.baseline.outputs.status != '0'
         uses: actions/upload-artifact@v4
         with:
@@ -112,6 +111,8 @@ jobs:
             ai-diagnosis.json
             failure-context.json
             ai-proposed.patch
+            repair-metrics.json
+            pytest-report.json
             pytest-output.txt
             pytest-patch-output.txt
           if-no-files-found: warn
