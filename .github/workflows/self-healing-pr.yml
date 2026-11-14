@@ -18,7 +18,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      OLLAMA_MODEL: qwen2.5-coder:1.5b
+      DIAGNOSIS_MODEL: llama3.2:1b
+      PATCH_MODEL: qwen2.5-coder:7b
     steps:
       - name: Check out selected branch
         uses: actions/checkout@v4
@@ -58,7 +59,8 @@ jobs:
             sleep 2
           done
           curl -fsS http://localhost:11434/api/tags > /dev/null || { cat /tmp/ollama.log; exit 1; }
-          ollama pull "$OLLAMA_MODEL"
+          ollama pull "$DIAGNOSIS_MODEL"
+          ollama pull "$PATCH_MODEL"
 
       - name: Diagnose failure
         if: steps.baseline.outputs.status != '0'
