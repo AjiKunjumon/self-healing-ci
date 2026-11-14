@@ -1,5 +1,6 @@
 import ast
 import json
+import re
 from pathlib import Path
 
 
@@ -91,6 +92,19 @@ def failure_text(failure):
     return str(message)[:800]
 
 
+def group_key_for_failure(failure):
+    """Approximate a root-cause group from the test's target function name."""
+    nodeid = str(failure.get("nodeid", "unknown test"))
+    name = nodeid.split("::")[-1].split("[", 1)[0]
+    if not name.startswith("test_"):
+        return name
+    name = name[5:]
+    # Remove common assertion/behavior descriptions so tests for the same
+    # function (e.g. calculate_total) are grouped together.
+    name = re.split(r"_(?:applies|rejects|strips|lowercases|uses|returns|formats|raises|handles)_", name, maxsplit=1)[0]
+    return name or "unknown"
+
+
 def main():
     if not REPORT_PATH.exists():
         raise SystemExit("pytest-report.json is missing; run pytest with --json-report first.")
@@ -131,23 +145,32 @@ def main():
             "test": nodeid,
             "failure": failure_text(failure),
             "candidate_source_files": compact_files,
+            "group_id": group_key_for_failure(failure),
         })
         if budget <= 0:
             break
+
+    groups = {}
+    for item in results:
+        groups.setdefault(item["group_id"], []).append(item["test"])
     payload = {
         "failed_tests": results,
+        "failure_groups": [
+            {"group_id": group_id, "tests": tests}
+            for group_id, tests in sorted(groups.items())
+        ],
         "failure_batch": {
             "limit": MAX_FAILED_TESTS,
             "selected": len(results),
             "total": len(all_failures),
             "remaining": max(0, len(all_failures) - len(results)),
         },
-        "context_note": "At most three failures are included per repair round. Source and failure details are truncated to bound prompt size.",
+        "context_note": "At most three failures are included per repair round. Source and failure details are truncated to bound prompt size. Groups are heuristic buckets based on test-name target/function; they are not confirmed root causes.",
     }
     OUTPUT_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(f"Built compact source context for {len(results)} of {len(all_failures)} failed test(s) (limit {MAX_FAILED_TESTS}).")
     for failure in results:
-        print(f"- {failure['test']}: " + ", ".join(item["path"] for item in failure["candidate_source_files"]))
+        print(f"- [{failure['group_id']}] {failure['test']}: " + ", ".join(item["path"] for item in failure["candidate_source_files"]))
 
 
 if __name__ == "__main__":
