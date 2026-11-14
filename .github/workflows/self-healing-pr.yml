@@ -123,7 +123,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          base: main
+          base: test/self-healing-failure
           branch: ai-repair/${{ github.run_id }}
           delete-branch: true
           draft: true
