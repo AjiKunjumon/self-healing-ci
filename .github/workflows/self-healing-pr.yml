@@ -107,6 +107,16 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
+      - name: Discard generated coverage data before PR creation
+        if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
+        shell: bash
+        run: |
+          if git ls-files --error-unmatch .coverage >/dev/null 2>&1; then
+            git restore --worktree -- .coverage
+          else
+            rm -f .coverage
+          fi
+
       - name: Open draft pull request for human review
         id: draft_pr
         if: steps.patch.outputs.applied == 'true' && steps.patched_tests.outputs.status == '0'
