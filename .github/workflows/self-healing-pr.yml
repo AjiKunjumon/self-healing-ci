@@ -99,6 +99,9 @@ jobs:
           draft: true
           commit-message: "Propose AI-assisted fix for failing tests"
           title: "[AI proposal] Repair failing tests"
+          add-paths: |
+            app.py
+            tests/
           body: |
             ## AI-proposed repair
 
