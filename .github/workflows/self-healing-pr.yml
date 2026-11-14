@@ -97,14 +97,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
+          # Clean working directory and reset to HEAD
+          git reset --hard HEAD
+          git clean -fd
+          
           # Create repair branch from main (clean slate)
           repair_branch="ai-repair/${{ github.run_id }}"
           git checkout main
           git checkout -b "$repair_branch"
           
-          # Copy only app.py and tests/ from current branch
-          git show HEAD:app.py > app.py
-          git show HEAD:tests/test_app.py > tests/test_app.py
+          # Copy only app.py and tests/test_app.py from the original branch
+          git show HEAD@{1}:app.py > app.py
+          git show HEAD@{1}:tests/test_app.py > tests/test_app.py
           
           # Stage only the source and test files
           git add app.py tests/test_app.py
