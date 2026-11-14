@@ -25,5 +25,11 @@ def test_sanitize_email_rejects_multiple_at_signs():
         sanitize_email("alice@@example.com")
 
 
+def test_sanitize_email_rejects_empty_local_or_domain():
+    for email in ("@example.com", "alice@"):
+        with pytest.raises(ValueError, match="invalid email"):
+            sanitize_email(email)
+
+
 def test_format_currency_uses_two_decimal_places():
     assert format_currency(12.5) == "$12.50"
