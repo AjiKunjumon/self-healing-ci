@@ -10,7 +10,6 @@ def calculate_total(items, tax_rate=0.08):
     """
     subtotal = sum(item["price"] * item["quantity"] for item in items)
     total = subtotal + (subtotal * tax_rate)
-    total = total + (subtotal * tax_rate)
     return round(total, 2)
 
 
@@ -25,7 +24,7 @@ def normalize_username(username):
 
 def sanitize_email(email):
     """Return a canonicalized email address."""
-    if "@" not in email:
+    if email.count("@") != 1:
         raise ValueError("invalid email")
     local, domain = email.split("@", 1)
     return f"{local.strip().lower()}@{domain.strip().lower()}"
