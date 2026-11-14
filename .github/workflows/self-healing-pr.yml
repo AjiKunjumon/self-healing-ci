@@ -97,8 +97,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          # Stash the repaired files before cleaning
-          git stash push -u -m "repair-files"
+          # Copy repaired files to temporary location before cleaning
+          mkdir -p /tmp/repair
+          cp app.py /tmp/repair/app.py
+          cp tests/test_app.py /tmp/repair/test_app.py
           
           # Clean working directory and reset to HEAD
           git reset --hard HEAD
@@ -109,8 +111,9 @@ jobs:
           git checkout main
           git checkout -b "$repair_branch"
           
-          # Restore the repaired files from stash
-          git stash pop
+          # Restore the repaired files from temporary location
+          cp /tmp/repair/app.py app.py
+          cp /tmp/repair/test_app.py tests/test_app.py
           
           # Stage only the source and test files
           git add app.py tests/test_app.py
