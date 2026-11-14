@@ -22,6 +22,17 @@ def failed_test_summary(source_context):
     ]
 
 
+def build_overall_summary(failed_tests):
+    """Build the displayed summary from every failed test, not model prose."""
+    if not failed_tests:
+        return "No failed tests were recorded in the failure context."
+    details = "; ".join(
+        f"[{item['group_id']}] {item['test']}: {item['failure']}"
+        for item in failed_tests
+    )
+    return f"{len(failed_tests)} failed test(s): {details}"
+
+
 def main():
     repo = os.environ.get("GITHUB_REPOSITORY", "demo/repo")
     sha = os.environ.get("GITHUB_SHA", "local")
@@ -42,7 +53,6 @@ Analyze EVERY entry in failed_tests. Return one diagnosis item for each test, pr
 For each failure, compare the assertion/traceback with the test and candidate source. Do not assume the test is wrong; identify the likely cause and smallest fix.
 If evidence is insufficient, say so and use low confidence. Do not claim to have edited or tested code.
 Return JSON only with these fields:
-- summary: concise overall diagnosis
 - root_cause: concise overall likely cause
 - suggested_fix: concise overall fix
 - files_to_review: array of relevant file paths
@@ -78,11 +88,13 @@ Per-failing-test source context:
 
     if not isinstance(diagnosis, dict):
         raise SystemExit("Ollama diagnosis response must be a JSON object.")
+    # The overall summary is deterministic and includes every test, regardless of
+    # which failures the model emphasizes in its higher-level analysis.
+    diagnosis["summary"] = build_overall_summary(failed_tests)
     diagnosis["failed_tests"] = failed_tests
     per_test = diagnosis.get("per_test", [])
     if not isinstance(per_test, list):
         per_test = []
-    # Preserve the complete deterministic test inventory alongside model analysis.
     diagnosis["per_test"] = per_test
     OUTPUT_PATH.write_text(json.dumps(diagnosis, indent=2) + "\n", encoding="utf-8")
 
