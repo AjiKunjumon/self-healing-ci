@@ -10,7 +10,6 @@ COVERAGE_PATH = ROOT / ".coverage"
 OUTPUT_PATH = ROOT / "failure-context.json"
 MAX_CONTEXT_CHARS = 10000
 MAX_FILE_CHARS = 2500
-MAX_FAILED_TESTS = 3
 EXCLUDED_PARTS = {".git", ".venv", "venv", "site-packages", "__pycache__"}
 
 
@@ -89,7 +88,7 @@ def failure_text(failure):
     call = failure.get("call") or {}
     crash = call.get("crash") or {}
     message = crash.get("message") or failure.get("longrepr") or "See pytest output."
-    return str(message)[:800]
+    return str(message)
 
 
 def group_key_for_failure(failure):
@@ -110,10 +109,9 @@ def main():
         raise SystemExit("pytest-report.json is missing; run pytest with --json-report first.")
     report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
     all_failures = [test for test in report.get("tests", []) if test.get("outcome") == "failed"]
-    failures = all_failures[:MAX_FAILED_TESTS]
     results = []
     budget = MAX_CONTEXT_CHARS
-    for failure in failures:
+    for failure in all_failures:
         nodeid = failure.get("nodeid", "unknown test")
         test_file = test_path_from_nodeid(nodeid)
         candidates = coverage_candidates(nodeid) if test_file else {}
@@ -147,9 +145,6 @@ def main():
             "candidate_source_files": compact_files,
             "group_id": group_key_for_failure(failure),
         })
-        if budget <= 0:
-            break
-
     groups = {}
     for item in results:
         groups.setdefault(item["group_id"], []).append(item["test"])
@@ -160,15 +155,14 @@ def main():
             for group_id, tests in sorted(groups.items())
         ],
         "failure_batch": {
-            "limit": MAX_FAILED_TESTS,
             "selected": len(results),
             "total": len(all_failures),
             "remaining": max(0, len(all_failures) - len(results)),
         },
-        "context_note": "At most three failures are included per repair round. Source and failure details are truncated to bound prompt size. Groups are heuristic buckets based on test-name target/function; they are not confirmed root causes.",
+        "context_note": "All failed tests are included; source snippets are bounded and may be truncated or omitted. Groups are heuristic buckets based on test-name target/function; they are not confirmed root causes.",
     }
     OUTPUT_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    print(f"Built compact source context for {len(results)} of {len(all_failures)} failed test(s) (limit {MAX_FAILED_TESTS}).")
+    print(f"Built compact source context for {len(results)} of {len(all_failures)} failed test(s).")
     for failure in results:
         print(f"- [{failure['group_id']}] {failure['test']}: " + ", ".join(item["path"] for item in failure["candidate_source_files"]))
 

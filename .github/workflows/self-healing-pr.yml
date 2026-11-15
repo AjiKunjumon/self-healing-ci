@@ -110,7 +110,10 @@ jobs:
           
           # Restore the repaired files from temporary location
           cp /tmp/repair/app.py app.py
-          
+
+          # Verify the actual PR tree, which may differ from the selected branch
+          python -m pytest -q 2>&1 | tee pytest-pr-output.txt
+
           # Stage only the allowlisted application file
           git add app.py
           
@@ -156,6 +159,7 @@ jobs:
             pytest-report.json
             pytest-output.txt
             pytest-patch-output.txt
+            pytest-pr-output.txt
           if-no-files-found: warn
           retention-days: 7
 
@@ -166,6 +170,7 @@ jobs:
           BASELINE_STATUS: ${{ steps.baseline.outputs.status }}
           PATCH_APPLIED: ${{ steps.patch.outputs.applied }}
           PATCHED_TEST_STATUS: ${{ steps.patched_tests.outputs.status }}
+          PR_BRANCH_RESULT: ${{ steps.draft_pr.outcome }}
           PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
         run: |
           {
@@ -174,6 +179,10 @@ jobs:
               echo '- Baseline tests passed; no repair was needed.'
             elif [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" == "0" && -n "$PR_NUMBER" ]]; then
               echo "- Proposed repair passed tests. Draft PR: #$PR_NUMBER (human review required)."
+            elif [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" != "0" ]]; then
+              echo '- Proposed repair did not pass the full test suite. No PR was created; see pytest-patch-output.txt in the artifact.'
+            elif [[ "$PR_BRANCH_RESULT" == "failure" ]]; then
+              echo '- Preparing or testing the repair PR branch failed. No PR was created; see the job log and pytest-pr-output.txt if available.'
             else
               echo '- Repair was not completed successfully. See logs and uploaded artifact.'
             fi
