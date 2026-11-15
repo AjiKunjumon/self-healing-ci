@@ -115,15 +115,15 @@ jobs:
           if git rev-parse --verify origin/test/self-healing-failure > /dev/null 2>&1; then
             echo "Merging test changes from test/self-healing-failure branch..."
             git fetch origin test/self-healing-failure
-            # Get only test file changes from the test branch
-            git checkout origin/test/self-healing-failure -- tests/ 2>/dev/null || true
+            # Get only application test files, excluding infrastructure tests
+            git checkout origin/test/self-healing-failure -- tests/test_app.py 2>/dev/null || true
           fi
 
           # Verify the repair works with all tests (including new ones from test branch)
           python -m pytest -q 2>&1 | tee pytest-pr-output.txt
 
           # Stage only the allowlisted application and test files
-          git add app.py tests/
+          git add app.py tests/test_app.py
           
           # Commit changes with multi-line message
           git commit -m "Propose AI-assisted fix for failing tests" -m "- Fixed app.py based on Copilot analysis" -m "- Included test updates from test/self-healing-failure branch"
