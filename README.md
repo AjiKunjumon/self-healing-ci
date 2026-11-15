@@ -5,7 +5,7 @@ This portfolio experiment demonstrates GitHub Copilot cloud-agent-assisted Pytho
 ## What it does
 
 1. GitHub Actions runs tests and records pytest's JSON report plus per-test coverage contexts.
-2. If tests fail, a context builder maps each failed test to its test file and Python source files executed by that test. If coverage mapping is unavailable, it falls back to local imports found in the test file.
+2. If tests fail, a context builder records every failure and maps tests to their test file and Python source files executed by that test. If coverage mapping is unavailable, it falls back to local imports found in the test file. Source snippets are size-limited and may be omitted when the shared budget is exhausted.
 3. The workflow sends bounded failure logs and source context to a Copilot cloud-agent task. The agent commits a structured diagnosis report to its task branch; the workflow validates and saves it as `ai-diagnosis.json`.
 4. The concise diagnosis appears in the job log and run summary; the full response and selected source context are uploaded as artifacts.
 5. The regular workflow ends red when the baseline tests fail. It does not apply code changes or open PRs.
@@ -18,7 +18,7 @@ A separate workflow, **Self-healing CI - draft repair PR**, can generate a narro
 2. Select the branch to test. Enable `create_draft_pr` only when you want to attempt a repair proposal; it defaults to true.
 3. The workflow runs the baseline tests, diagnoses failures, and builds per-test source context.
 4. If enabled, a second Copilot cloud-agent task may propose a patch. The workflow rejects agent tasks that change files other than `app.py` and the temporary patch artifact. The patch itself must apply cleanly to the current checkout and may modify only the existing `app.py`.
-5. The workflow reruns the complete test suite. It opens a **draft** PR containing only `app.py` if the patch applies and all tests pass.
+5. The workflow reruns the complete test suite. It opens a **draft** PR containing only `app.py` if the patch applies and all tests pass; otherwise it stops and reports the failed patched run.
 6. Review the diff and diagnosis yourself. The workflow does not merge changes.
 
 The baseline test failure remains recorded as a failed workflow even when a repair PR is opened. A passing test run is not proof of correctness. Require normal human review and branch protection before merging; configure required approvals in the repository's rulesets/branch protection settings.

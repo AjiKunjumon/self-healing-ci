@@ -174,6 +174,8 @@ jobs:
               echo '- Baseline tests passed; no repair was needed.'
             elif [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" == "0" && -n "$PR_NUMBER" ]]; then
               echo "- Proposed repair passed tests. Draft PR: #$PR_NUMBER (human review required)."
+            elif [[ "$PATCH_APPLIED" == "true" && "$PATCHED_TEST_STATUS" != "0" ]]; then
+              echo '- Proposed repair did not pass the full test suite. No PR was created; see pytest-patch-output.txt in the artifact.'
             else
               echo '- Repair was not completed successfully. See logs and uploaded artifact.'
             fi
