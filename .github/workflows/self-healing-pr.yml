@@ -125,11 +125,8 @@ jobs:
           # Stage only the allowlisted application and test files
           git add app.py tests/
           
-          # Commit changes
-          git commit -m "Propose AI-assisted fix for failing tests
-
-- Fixed app.py based on Copilot analysis
-- Included test updates from test/self-healing-failure branch"
+          # Commit changes with multi-line message
+          git commit -m "Propose AI-assisted fix for failing tests" -m "- Fixed app.py based on Copilot analysis" -m "- Included test updates from test/self-healing-failure branch"
           
           # Push branch
           git push -u origin "$repair_branch"
