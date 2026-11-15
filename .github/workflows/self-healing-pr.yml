@@ -17,9 +17,9 @@ jobs:
   diagnose-and-propose:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
-      DIAGNOSIS_MODEL: tinyllama:latest
-      PATCH_MODEL: codeqwen:1.5b
+      COPILOT_BASE_SHA: ${{ github.sha }}
     steps:
       - name: Check out selected branch
         uses: actions/checkout@v4
@@ -59,38 +59,19 @@ jobs:
         if: steps.baseline.outputs.status != '0'
         run: python scripts/build_failure_context.py
 
-      - name: Cache Ollama models
-        if: steps.baseline.outputs.status != '0'
-        uses: actions/cache@v4
-        with:
-          path: ~/.ollama/models
-          key: ollama-models-${{ env.DIAGNOSIS_MODEL }}-${{ env.PATCH_MODEL }}
-          restore-keys: |
-            ollama-models-
-
-      - name: Install and start Ollama
-        if: steps.baseline.outputs.status != '0'
-        run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          ollama serve > /tmp/ollama.log 2>&1 &
-          for attempt in {1..30}; do
-            if curl -fsS http://localhost:11434/api/tags > /dev/null; then break; fi
-            sleep 2
-          done
-          curl -fsS http://localhost:11434/api/tags > /dev/null || { cat /tmp/ollama.log; exit 1; }
-          ollama pull "$DIAGNOSIS_MODEL"
-          ollama pull "$PATCH_MODEL"
-
-      - name: Diagnose failure
+      - name: Diagnose failure with GitHub Copilot cloud agent
         if: steps.baseline.outputs.status != '0'
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
+          COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
         run: python scripts/diagnose_failure.py
 
-      - name: Generate and apply allowlisted unified-diff patch
+      - name: Generate and validate app.py-only repair with Copilot
         id: patch
         if: steps.baseline.outputs.status != '0' && inputs.create_draft_pr
+        env:
+          COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
         run: python scripts/propose_and_apply_patch.py
 
       - name: Re-run tests against proposed patch
@@ -117,7 +98,6 @@ jobs:
           # Copy repaired files to temporary location before cleaning
           mkdir -p /tmp/repair
           cp app.py /tmp/repair/app.py
-          cp tests/test_app.py /tmp/repair/test_app.py
           
           # Clean working directory and reset to HEAD
           git reset --hard HEAD
@@ -130,10 +110,9 @@ jobs:
           
           # Restore the repaired files from temporary location
           cp /tmp/repair/app.py app.py
-          cp /tmp/repair/test_app.py tests/test_app.py
           
-          # Stage only the source and test files
-          git add app.py tests/test_app.py
+          # Stage only the allowlisted application file
+          git add app.py
           
           # Commit changes
           git commit -m "Propose AI-assisted fix for failing tests"
@@ -158,7 +137,7 @@ jobs:
               title: "[AI proposal] Repair failing tests",
               head: "${{ steps.draft_pr.outputs.pr_branch }}",
               base: "main",
-              body: "## AI-proposed repair\n\nThis draft PR includes the regression test changes from `test/self-healing-failure` and the proposed AI fix. The changes have passed the test suite.\nHuman review is required; passing tests do not prove the change is correct.\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              body: "## Copilot-proposed repair\n\nThis draft PR contains only the validated `app.py` repair. The patched test suite passed in the workflow run.\nHuman review is required; passing tests do not prove the change is correct.\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
               draft: true
             });
             core.setOutput('pull-request-number', result.data.number);
