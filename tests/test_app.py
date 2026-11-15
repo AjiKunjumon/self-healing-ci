@@ -1,6 +1,6 @@
 import pytest
 
-from app import calculate_total, format_currency, normalize_username, sanitize_email
+from app import calculate_total, format_currency, normalize_username, sanitize_email, validate_phone_number
 
 
 def test_calculate_total_applies_tax_once():
@@ -35,3 +35,19 @@ def test_sanitize_email_rejects_multiple_at_signs():
 
 def test_format_currency_uses_two_decimal_places():
     assert format_currency(12.5) == "$12.50"
+
+
+def test_validate_phone_number_formats_correctly():
+    """This test should pass when the bug is fixed."""
+    assert validate_phone_number("555-123-4567") == "(555) 123-4567"
+
+
+def test_validate_phone_number_with_spaces():
+    """This test should pass when the bug is fixed."""
+    assert validate_phone_number("(555) 123-4567") == "(555) 123-4567"
+
+
+def test_validate_phone_number_rejects_short_input():
+    """This test validates error handling."""
+    with pytest.raises(ValueError, match="must contain exactly 10 digits"):
+        validate_phone_number("123-45")
