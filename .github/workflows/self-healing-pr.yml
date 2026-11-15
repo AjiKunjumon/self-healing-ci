@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
       COPILOT_BASE_SHA: ${{ github.sha }}
     steps:
       - name: Check out selected branch
@@ -65,11 +64,14 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
+          COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
         run: python scripts/diagnose_failure.py
 
       - name: Generate and validate app.py-only repair with Copilot
         id: patch
         if: steps.baseline.outputs.status != '0' && inputs.create_draft_pr
+        env:
+          COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
         run: python scripts/propose_and_apply_patch.py
 
       - name: Re-run tests against proposed patch

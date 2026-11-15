@@ -9,12 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
       COPILOT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,10 +47,26 @@ jobs:
         if: steps.tests.outputs.status != '0'
         run: python scripts/build_failure_context.py
 
-      - name: Diagnose failure with GitHub Copilot cloud agent
+      - name: Check Copilot token availability
+        id: copilot_token
         if: steps.tests.outputs.status != '0'
         env:
+          COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
+        run: |
+          if [[ -n "$COPILOT_AGENT_TOKEN" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "COPILOT_AGENT_TOKEN is unavailable; cloud-agent diagnosis was skipped." >&2
+            echo "## Copilot diagnosis skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "A user-to-server token is required. Fork pull requests do not receive repository secrets." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Diagnose failure with GitHub Copilot cloud agent
+        if: steps.tests.outputs.status != '0' && steps.copilot_token.outputs.available == 'true'
+        env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
         run: python scripts/diagnose_failure.py
 
       - name: Upload diagnosis and failure context

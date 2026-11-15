@@ -59,4 +59,5 @@ The Python tests and failure-context builder run locally without Copilot credent
 - The diagnosis and patch can be wrong. Confidence is an agent-generated label, not a calibrated probability.
 - Patch generation can be disabled with the `create_draft_pr` input and is limited to `app.py`. The workflow validates the task's changed-file set and patch paths, checks that the patch applies cleanly, and runs all tests before creating a draft PR. All changes still require human review.
 - The repair workflow requires a user-to-server token with Agent tasks read/write access and a Copilot plan that supports the cloud agent. Cloud-agent task duration and API availability are outside the workflow's control.
+- The normal `pull_request` workflow skips diagnosis when the token is unavailable, including for fork pull requests where GitHub withholds repository secrets.
 - Copilot tasks create remote working branches for their results. Those branches are not merged automatically; review and clean them up in the repository when appropriate.

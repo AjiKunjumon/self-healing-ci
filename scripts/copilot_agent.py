@@ -137,34 +137,68 @@ def wait_for_task(task_id, timeout_seconds=TASK_TIMEOUT_SECONDS):
         time.sleep(min(POLL_INTERVAL_SECONDS, max(0, deadline - time.monotonic())))
 
 
-def fetch_task_file(branch, path, base_sha):
+def _validate_branch(branch):
     if (not isinstance(branch, str) or not re.fullmatch(r"[A-Za-z0-9_./-]+", branch)
             or branch.startswith("-")):
         raise AgentError("Copilot task returned an invalid branch name.")
-    if (not isinstance(path, str) or Path(path).is_absolute()
-            or not re.fullmatch(r"[A-Za-z0-9_./-]+", path)
-            or ".." in Path(path).parts):
-        raise AgentError("Requested task file path is invalid.")
     checked = subprocess.run(
         ["git", "check-ref-format", f"refs/heads/{branch}"],
         text=True, capture_output=True,
     )
     if checked.returncode:
         raise AgentError("Copilot task returned an invalid branch name.")
+
+
+def _task_snapshot(branch, workflow_base_sha):
+    _validate_branch(branch)
     fetched = subprocess.run(
         ["git", "fetch", "--no-tags", "origin", f"refs/heads/{branch}"],
         text=True, capture_output=True,
     )
     if fetched.returncode:
         raise AgentError(f"Could not fetch Copilot task branch: {fetched.stderr.strip()}")
-    ancestry = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", base_sha, "FETCH_HEAD"],
+    task_commit = subprocess.run(
+        ["git", "rev-parse", "--verify", "FETCH_HEAD^{commit}"],
         text=True, capture_output=True,
     )
-    if ancestry.returncode:
-        raise AgentError("Copilot task branch is not based on the workflow commit.")
+    if task_commit.returncode:
+        raise AgentError(f"Could not resolve Copilot task branch: {task_commit.stderr.strip()}")
+    base_ref = _base_ref()
+    fetched_base = subprocess.run(
+        ["git", "fetch", "--no-tags", "origin", f"refs/heads/{base_ref}"],
+        text=True, capture_output=True,
+    )
+    if fetched_base.returncode:
+        raise AgentError(f"Could not fetch task base branch: {fetched_base.stderr.strip()}")
+    base_commit = subprocess.run(
+        ["git", "rev-parse", "--verify", "FETCH_HEAD^{commit}"],
+        text=True, capture_output=True,
+    )
+    if base_commit.returncode:
+        raise AgentError(f"Could not resolve task base branch: {base_commit.stderr.strip()}")
+    fork_point = subprocess.run(
+        ["git", "merge-base", task_commit.stdout.strip(), base_commit.stdout.strip()],
+        text=True, capture_output=True,
+    )
+    if fork_point.returncode:
+        raise AgentError("Could not identify the Copilot task's base commit.")
+    based_on_workflow_commit = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", workflow_base_sha, fork_point.stdout.strip()],
+        text=True, capture_output=True,
+    )
+    if based_on_workflow_commit.returncode:
+        raise AgentError("Copilot task branch does not descend from the workflow base commit.")
+    return task_commit.stdout.strip(), fork_point.stdout.strip()
+
+
+def fetch_task_file(branch, path, base_sha):
+    if (not isinstance(path, str) or Path(path).is_absolute()
+            or not re.fullmatch(r"[A-Za-z0-9_./-]+", path)
+            or ".." in Path(path).parts):
+        raise AgentError("Requested task file path is invalid.")
+    task_commit, _fork_point = _task_snapshot(branch, base_sha)
     result = subprocess.run(
-        ["git", "show", f"FETCH_HEAD:{path}"],
+        ["git", "show", f"{task_commit}:{path}"],
         text=True, capture_output=True,
     )
     if result.returncode:
@@ -177,22 +211,9 @@ def workflow_base_sha():
 
 
 def changed_files_in_task(branch, base_sha):
-    if not isinstance(branch, str) or not re.fullmatch(r"[A-Za-z0-9_./-]+", branch):
-        raise AgentError("Copilot task returned an invalid branch name.")
-    checked = subprocess.run(
-        ["git", "check-ref-format", f"refs/heads/{branch}"],
-        text=True, capture_output=True,
-    )
-    if checked.returncode:
-        raise AgentError("Copilot task returned an invalid branch name.")
-    fetched = subprocess.run(
-        ["git", "fetch", "--no-tags", "origin", f"refs/heads/{branch}"],
-        text=True, capture_output=True,
-    )
-    if fetched.returncode:
-        raise AgentError(f"Could not fetch Copilot task branch: {fetched.stderr.strip()}")
+    task_commit, fork_point = _task_snapshot(branch, base_sha)
     result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base_sha}...FETCH_HEAD"],
+        ["git", "diff", "--name-only", f"{fork_point}..{task_commit}"],
         text=True, capture_output=True,
     )
     if result.returncode:

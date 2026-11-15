@@ -88,18 +88,23 @@ def write_metrics(payload):
 def validate_patch(diff):
     if not diff.strip():
         raise ValueError("Copilot produced an empty patch.")
-    if diff.splitlines()[0] != "diff --git a/app.py b/app.py":
+    lines = diff.splitlines()
+    git_headers = [line for line in lines if line.startswith("diff --git ")]
+    if git_headers != ["diff --git a/app.py b/app.py"]:
         raise ValueError("Patch must use Git's unified-diff format for app.py.")
+    if any(line.startswith(("GIT binary patch", "Binary files ", "literal ", "delta "))
+           for line in lines):
+        raise ValueError("Binary patches are not allowed.")
     forbidden_metadata = (
         "rename from ", "rename to ", "copy from ", "copy to ",
         "new file mode ", "deleted file mode ", "old mode ", "new mode ",
         "similarity index ", "dissimilarity index ",
     )
-    if any(line.startswith(forbidden_metadata) for line in diff.splitlines()):
+    if any(line.startswith(forbidden_metadata) for line in lines):
         raise ValueError("File creation, deletion, mode changes, renames, and copies are not allowed.")
     headers = [
         line[4:].split("\t", 1)[0].strip()
-        for line in diff.splitlines()
+        for line in lines
         if line.startswith(("--- ", "+++ "))
     ]
     if headers != ["a/app.py", "b/app.py"]:

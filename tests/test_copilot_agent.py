@@ -1,6 +1,7 @@
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -89,6 +90,45 @@ def test_task_branch_requires_branch_artifact():
         copilot_agent._task_branch({"state": "completed"})
 
 
+def test_changed_files_uses_task_branch_fork_point(monkeypatch):
+    task_commit = "c" * 40
+    latest_base = "d" * 40
+    fork_point = "b" * 40
+    workflow_commit = "a" * 40
+    diff_args = []
+
+    def fake_run(args, **_kwargs):
+        if args[1] == "diff":
+            diff_args.extend(args)
+            return SimpleNamespace(returncode=0, stdout="app.py\n", stderr="")
+        if args[1:3] == ["merge-base", "--is-ancestor"]:
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        if args[1] == "merge-base":
+            return SimpleNamespace(returncode=0, stdout=fork_point + "\n", stderr="")
+        if args[1:3] == ["rev-parse", "--verify"]:
+            revision = task_commit if not any(
+                item[1] == "fetch" and "refs/heads/main" in item[-1]
+                for item in fake_run.calls
+            ) else latest_base
+            return SimpleNamespace(returncode=0, stdout=revision + "\n", stderr="")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    fake_run.calls = []
+
+    def record_run(args, **kwargs):
+        fake_run.calls.append(args)
+        return fake_run(args, **kwargs)
+
+    monkeypatch.setenv("GITHUB_REF_NAME", "main")
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+    monkeypatch.setattr(copilot_agent.subprocess, "run", record_run)
+
+    assert copilot_agent.changed_files_in_task("copilot/repair", workflow_commit) == {
+        "app.py"
+    }
+    assert diff_args[-1] == f"{fork_point}..{task_commit}"
+
+
 def test_validate_patch_accepts_app_only_unified_diff():
     diff = (
         "diff --git a/app.py b/app.py\n"
@@ -130,3 +170,19 @@ def test_validate_patch_rejects_file_mode_changes():
 
     with pytest.raises(ValueError, match="mode changes"):
         propose_and_apply_patch.validate_patch(diff)
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        "diff --git a/app.py b/app.py\nGIT binary patch\nliteral 5\n",
+        "diff --git a/app.py b/app.py\n"
+        "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n"
+        "-import math\n+import math as math\n"
+        "diff --git a/tests/test_app.py b/tests/test_app.py\n"
+        "GIT binary patch\nliteral 5\n",
+    ],
+)
+def test_validate_patch_rejects_binary_or_multiple_file_sections(patch):
+    with pytest.raises(ValueError):
+        propose_and_apply_patch.validate_patch(patch)
