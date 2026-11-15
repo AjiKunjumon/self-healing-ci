@@ -18,8 +18,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      DIAGNOSIS_MODEL: llama3.2:1b
-      PATCH_MODEL: qwen2.5-coder:7b
+      DIAGNOSIS_MODEL: tinyllama:latest
+      PATCH_MODEL: codeqwen:1.5b
     steps:
       - name: Check out selected branch
         uses: actions/checkout@v4
