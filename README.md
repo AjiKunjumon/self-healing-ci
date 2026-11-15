@@ -18,7 +18,7 @@ A separate workflow, **Self-healing CI - draft repair PR**, can generate a narro
 2. Select the branch to test. Enable `create_draft_pr` only when you want to attempt a repair proposal; it defaults to true.
 3. The workflow runs the baseline tests, diagnoses failures, and builds per-test source context.
 4. If enabled, a second Copilot cloud-agent task may propose a patch. The workflow rejects agent tasks that change files other than `app.py` and the temporary patch artifact. The patch itself must apply cleanly to the current checkout and may modify only the existing `app.py`.
-5. The workflow reruns the complete test suite. It opens a **draft** PR containing only `app.py` if the patch applies and all tests pass; otherwise it stops and reports the failed patched run.
+5. The workflow reruns the complete test suite against the patch and again on the proposed PR tree based on `main`. It opens a **draft** PR containing only `app.py` if both runs pass; otherwise it stops and reports the failure.
 6. Review the diff and diagnosis yourself. The workflow does not merge changes.
 
 The baseline test failure remains recorded as a failed workflow even when a repair PR is opened. A passing test run is not proof of correctness. Require normal human review and branch protection before merging; configure required approvals in the repository's rulesets/branch protection settings.
