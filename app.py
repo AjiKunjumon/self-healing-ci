@@ -29,3 +29,22 @@ def sanitize_email(email):
         raise ValueError("invalid email")
     local, domain = email.split("@", 1)
     return f"{local.strip().lower()}@{domain.strip().lower()}"
+
+
+def validate_phone_number(phone):
+    """
+    Validate a phone number and return it in standard format: (XXX) XXX-XXXX
+    
+    Only accepts 10-digit phone numbers (US format).
+    This version intentionally has a bug: it doesn't remove non-digit characters.
+    """
+    # Bug: should remove non-digits first
+    if len(phone) != 14:
+        raise ValueError("Phone number must be exactly 10 digits")
+    
+    # This will fail if phone has non-digits
+    digits = ''.join(c for c in phone if c.isdigit())
+    if len(digits) != 10:
+        raise ValueError("Phone number must contain exactly 10 digits")
+    
+    return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
