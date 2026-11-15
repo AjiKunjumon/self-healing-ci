@@ -16,6 +16,14 @@ def test_calculate_total_applies_tax_once_for_single_item():
     assert calculate_total(items, tax_rate=0.10) == 44.00
 
 
+def test_calculate_total_applies_tax_once_for_large_order():
+    items = [
+        {"price": 100.0, "quantity": 3},
+        {"price": 25.0, "quantity": 4},
+    ]
+    assert calculate_total(items, tax_rate=0.075) == 430.00
+
+
 def test_normalize_username_strips_whitespace_and_lowercases():
     assert normalize_username("  Alice  ") == "alice"
 
