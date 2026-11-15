@@ -108,17 +108,28 @@ jobs:
           git checkout main
           git checkout -b "$repair_branch"
           
-          # Restore the repaired files from temporary location
+          # Restore the repaired app.py
           cp /tmp/repair/app.py app.py
+          
+          # Include test changes from test/self-healing-failure branch if it exists
+          if git rev-parse --verify origin/test/self-healing-failure > /dev/null 2>&1; then
+            echo "Merging test changes from test/self-healing-failure branch..."
+            git fetch origin test/self-healing-failure
+            # Get only test file changes from the test branch
+            git checkout origin/test/self-healing-failure -- tests/ 2>/dev/null || true
+          fi
 
-          # Verify the actual PR tree, which may differ from the selected branch
+          # Verify the repair works with all tests (including new ones from test branch)
           python -m pytest -q 2>&1 | tee pytest-pr-output.txt
 
-          # Stage only the allowlisted application file
-          git add app.py
+          # Stage only the allowlisted application and test files
+          git add app.py tests/
           
           # Commit changes
-          git commit -m "Propose AI-assisted fix for failing tests"
+          git commit -m "Propose AI-assisted fix for failing tests
+
+- Fixed app.py based on Copilot analysis
+- Included test updates from test/self-healing-failure branch"
           
           # Push branch
           git push -u origin "$repair_branch"
@@ -140,7 +151,7 @@ jobs:
               title: "[AI proposal] Repair failing tests",
               head: "${{ steps.draft_pr.outputs.pr_branch }}",
               base: "main",
-              body: "## Copilot-proposed repair\n\nThis draft PR contains only the validated `app.py` repair. The patched test suite passed in the workflow run.\nHuman review is required; passing tests do not prove the change is correct.\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              body: "## Copilot-proposed repair\n\nThis draft PR contains the validated fix for `app.py` and test updates from the `test/self-healing-failure` branch. The patched test suite passed in the workflow run.\n\nHuman review is required; passing tests do not prove the change is correct.",
               draft: true
             });
             core.setOutput('pull-request-number', result.data.number);
