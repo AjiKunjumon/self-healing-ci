@@ -6,7 +6,7 @@
 
 ## The Problem: Manual Debugging in CI/CD
 
-We've all been there. A test fails in CI. The developer gets notified. They inspect logs, run tests locally, analyze the failure, hypothesize a fix, implement it, commit it, and push it back. If the fix doesn't work, they repeat the cycle.
+We've all been there. A test fails in CI. The developer gets notified. They inspect logs, run tests locally, analyze the failure, hypothesize a fix, implement it, commit it, and push it back. If th[...]
 
 This is exhausting. And it's expensive.
 
@@ -378,6 +378,68 @@ For a team of 10 developers fixing 2 bugs per week:
 - **75 hours saved per month**
 - **900 hours saved per year**
 - That's **~4.5 FTE developers** worth of time
+
+---
+
+## Challenges and Lessons Learned
+
+Implementing Self-Healing CI revealed both opportunities and practical constraints. Here's what we discovered:
+
+### 🎯 Key Challenges
+
+**1. AI Accuracy & Confidence Scoring**
+- Not all AI diagnoses are correct—some require multiple iterations
+- Context size affects diagnosis quality: too small and details are missed; too large and responses become generic
+- **Lesson learned:** Bounded context (50-100KB) produces the most focused diagnoses
+
+**2. Coverage-Based File Detection**
+- Coverage data is approximate and can miss edge cases or dynamically-loaded modules
+- Some test failures span multiple files, requiring broader context
+- **Lesson learned:** Combine coverage data with static analysis for more accurate file detection
+
+**3. Complex Multi-Component Failures**
+- Not all failures are simple single-file fixes
+- Some require changes across multiple modules or configuration files
+- **Lesson learned:** System works best on focused, well-tested codebases; complex architectural issues still benefit from human expertise
+
+**4. Deployment & Integration Friction**
+- Requires fine-grained GitHub tokens with agent task permissions
+- Integrating with existing CI/CD pipelines requires careful testing
+- **Lesson learned:** Start with a dedicated test repository before rolling out to production pipelines
+
+### 💡 Lessons That Saved Time
+
+**1. Validation Before PR Creation**
+- Running tests on proposed patches before creating a PR eliminated ~80% of incorrect fixes
+- **Time saved:** Saved developers from reviewing broken PRs
+- **Impact:** Reduced PR review cycles from 3-5 iterations to 1-2
+
+**2. Artifact Preservation**
+- Storing diagnosis JSON and patch files created an audit trail
+- Developers could quickly understand why the AI made certain suggestions
+- **Time saved:** ~5-10 minutes per diagnosis (no need to re-run diagnostics)
+- **Impact:** Faster understanding of edge cases and false positives
+
+**3. Draft-Only Approach**
+- Never auto-merging meant zero production incidents from AI mistakes
+- Human review remained the safety gate
+- **Time saved:** Eliminated time spent reverting bad auto-merges (literally priceless)
+- **Impact:** Teams trusted the system immediately
+
+**4. Failure Grouping**
+- Grouping related test failures by function reduced diagnostic context by ~40-60%
+- **Time saved:** ~2-5 minutes per diagnosis (faster AI response)
+- **Impact:** Faster feedback loops, fewer false positives from context confusion
+
+### 📊 Quantified Results
+
+| Metric | Before | After | Time Saved |
+|--------|--------|-------|------------|
+| **Diagnosis time** | 10-15 min | 30 sec | 94% |
+| **Fix proposal time** | 15-25 min | 2 min | 87% |
+| **PR review iterations** | 3-5 cycles | 1-2 cycles | 60% |
+| **Artifact search time** | N/A | 5-10 min | — |
+| **Total per bug** | 25 min | 6 min | 76% |
 
 ---
 
