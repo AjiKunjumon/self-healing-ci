@@ -1,40 +1,44 @@
 # Self-Healing CI Demo
 
-This portfolio project demonstrates AI-assisted Python test-failure diagnosis and optional repair proposals using local models through [Ollama](https://ollama.com/). It uses pytest's JSON report and per-test coverage context to connect failures to relevant source files.
+This portfolio experiment demonstrates GitHub Copilot cloud-agent-assisted Python test-failure diagnosis and repair proposals. GitHub Actions records pytest's JSON report and per-test coverage contexts, then invokes Copilot's Agent Tasks REST API to analyze failures and propose an application-only repair. No local model downloads or third-party model API keys are used.
 
-## Branch strategy
-
-- **`main` is the healthy baseline.** Keep its application code and tests passing. The workflow and model integration live here; do not commit intentional breakages to `main`.
-- **`test/self-healing-failure` is the sandbox/demo branch.** It contains deliberate test failures for exercising diagnosis and repair. Run the workflows against this branch when testing self-healing behavior. Do not merge the sandbox branch wholesale into `main`, because that can bring the intentionally broken application code and tests with it.
-- To promote workflow improvements, make a clean branch from `main` and cherry-pick or reapply only the workflow, scripts, and documentation changes. Leave intentional failure fixtures behind. Open a PR from that clean branch to `main`, confirm its tests pass, then merge through normal review.
-
-## What the diagnosis workflow does
+## What it does
 
 1. GitHub Actions runs tests and records pytest's JSON report plus per-test coverage contexts.
-2. If tests fail, a context builder maps each failed test to its test file and Python source files executed by that test. If coverage mapping is unavailable, it falls back to local imports found in the test file.
-3. Ollama runs the lightweight `llama3.2:1b` model for diagnosis, using the failure log and bounded source context.
-4. A diagnosis appears in the job log and run summary; failure context and diagnosis artifacts are uploaded for review.
-5. The regular diagnosis workflow does not modify code or open PRs. A failing baseline run remains failed so the regression is visible.
+2. If tests fail, a context builder records every failure and maps tests to their test file and Python source files executed by that test. If coverage mapping is unavailable, it falls back to local imports found in the test file. Source snippets are size-limited and may be omitted when the shared budget is exhausted.
+3. The workflow sends bounded failure logs and source context to a Copilot cloud-agent task. The agent commits a structured diagnosis report to its task branch; the workflow validates and saves it as `ai-diagnosis.json`.
+4. The concise diagnosis appears in the job log and run summary; the full response and selected source context are uploaded as artifacts.
+5. The regular workflow ends red when the baseline tests fail. It does not apply code changes or open PRs.
 
 ## Optional draft repair PR
 
-The separate **Self-healing CI - draft repair PR** workflow can generate a constrained repair and open a draft PR when the proposed changes pass the full test suite.
+A separate workflow, **Self-healing CI - draft repair PR**, can generate a narrowly scoped patch and open a draft PR after the patched tests pass.
 
 1. Open **Actions** and run **Self-healing CI - draft repair PR** manually.
-2. Select the branch to test. Use `test/self-healing-failure` to exercise the deliberate regression; use `main` for the passing baseline.
-3. Enable `create_draft_pr` only when you want to attempt a repair proposal.
-4. The workflow downloads and uses two models: `llama3.2:1b` (`DIAGNOSIS_MODEL`) for failure diagnosis and `qwen2.5-coder:7b` (`PATCH_MODEL`) for code repair. The coder model is larger because generating code edits benefits from a stronger model.
-5. The patch validator restricts edits to existing application Python files selected by the context builder. It refuses changes to tests, workflow files, scripts, and configuration.
-6. The workflow tests the proposal and creates a **draft** PR only when the patch is accepted and the full test suite passes. Human review is required; the workflow never merges automatically.
+2. Select the branch to test. Enable `create_draft_pr` only when you want to attempt a repair proposal; it defaults to true.
+3. The workflow runs the baseline tests, diagnoses failures, and builds per-test source context.
+4. If enabled, a second Copilot cloud-agent task may propose a patch. The workflow rejects agent tasks that change files other than `app.py` and the temporary patch artifact. The patch itself must apply cleanly to the current checkout and may modify only the existing `app.py`.
+5. The workflow reruns the complete test suite against the patch and again on the proposed PR tree based on `main`. It opens a **draft** PR containing the repaired `app.py` and, when available, application test updates from the sandbox branch if both runs pass; otherwise it stops and reports the failure.
+6. Review the diff and diagnosis yourself. The workflow does not merge changes.
 
-The first run downloads both models (roughly 1.3 GB for the 7B coder model, plus the diagnosis model) and can take several minutes on a CPU-only GitHub-hosted runner. No Ollama API key or repository secret is required.
+The baseline test failure remains recorded as a failed workflow even when a repair PR is opened. A passing test run is not proof of correctness. Require normal human review and branch protection before merging; configure required approvals in the repository's rulesets/branch protection settings.
 
-## Run the demo safely
+The PR workflow is manual-only and has write permissions to create its branch and PR. Do not add `pull_request` triggers to that workflow. The normal diagnosis workflow remains separate.
 
-1. Keep `main` passing and use it as the source for production changes.
-2. Select `test/self-healing-failure` in the manual workflow to run the intentional failing-test scenario.
-3. Review the diagnosis and patch artifacts. If a repair PR is created, inspect it; do not merge without normal code review and passing CI.
-4. When promoting improvements to `main`, use a clean PR containing only the intended workflow, scripts, or documentation updates. Do not merge the sandbox branch wholesale.
+## Setup
+
+Create a fine-grained personal access token for this repository with **Agent tasks: read and write** permission and add it as the Actions repository secret `COPILOT_AGENT_TOKEN`. The Copilot cloud agent must be enabled and available to the token's user (Copilot Business or Enterprise). The workflow uses the GitHub Copilot Agent Tasks REST API, which is in public preview and may change.
+
+No third-party model API key is needed. **The cloud-agent Tasks API does not accept the automatic Actions `GITHUB_TOKEN`**; the user token secret is required for API authentication. The agent's asynchronous execution time depends on GitHub and is not guaranteed to finish within two minutes. Each task is limited to four minutes and each workflow job has a ten-minute maximum.
+
+## Run the demo
+
+1. Configure `COPILOT_AGENT_TOKEN` as described above.
+2. Open **Actions** and select **Self-healing CI**.
+3. Select **Run workflow** on `test/self-healing-failure` to exercise the intentional failure; use `main` for the passing baseline.
+4. Open the run. For a failing test, inspect the diagnosis step and download the `ai-diagnosis` artifact.
+
+No local model or model download is needed. Runs with failed tests require an available Copilot cloud agent and may take several minutes.
 
 ## Run tests locally
 
@@ -46,19 +50,14 @@ python -m pytest -q --cov=. --cov-context=test --cov-report= --json-report --jso
 python scripts/build_failure_context.py
 ```
 
-To run diagnosis locally with Ollama installed and running:
-
-```bash
-ollama pull llama3.2:1b
-DIAGNOSIS_MODEL=llama3.2:1b python scripts/diagnose_failure.py
-```
-
-For local patch generation, also pull the coder model and set `PATCH_MODEL=qwen2.5-coder:7b`.
+The Python tests and failure-context builder run locally without Copilot credentials. To run diagnosis or patch-proposal scripts locally, set `COPILOT_AGENT_TOKEN` to a user-to-server token with Agent tasks read/write access, and set `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`, and `GITHUB_SHA` to a repository and branch/commit the token can access. These scripts create cloud-agent tasks and fetch their resulting branches; they are not offline commands.
 
 ## Safety and limitations
 
 - Only repository Python files associated with failed tests are included, with size limits. Review artifacts before sharing them; source code can contain sensitive material.
 - Coverage narrows candidate files but cannot prove causality. Import-based fallback is approximate.
-- Model diagnoses and patches can be wrong. Confidence labels are model-generated, not calibrated probabilities.
-- Patch generation is opt-in and limited to selected application Python files. A passing test suite does not prove correctness; all changes still require human review.
-- The workflow uses a GitHub-hosted runner and downloads the Ollama models when tests fail.
+- The diagnosis and patch can be wrong. Confidence is an agent-generated label, not a calibrated probability.
+- Patch generation can be disabled with the `create_draft_pr` input and is limited to `app.py`. The workflow validates the task's changed-file set and patch paths, checks that the patch applies cleanly, and runs all tests before creating a draft PR. All changes still require human review.
+- The repair workflow requires a user-to-server token with Agent tasks read/write access and a Copilot plan that supports the cloud agent. Cloud-agent task duration and API availability are outside the workflow's control.
+- The normal `pull_request` workflow skips diagnosis when the token is unavailable, including for fork pull requests where GitHub withholds repository secrets.
+- Copilot tasks create remote working branches for their results. Those branches are not merged automatically; review and clean them up in the repository when appropriate.
