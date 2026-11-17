@@ -57,7 +57,9 @@ This isn't just "test X failed." It's:
 
 ### Step 2: Intelligent Failure Context Building
 
-The system groups related failures and builds a minimal context for the AI. Here's the real implementation:
+The system groups related failures and builds a minimal context for the AI. Here's the real implementation from our codebase:
+
+**View full source:** [scripts/build_failure_context.py](https://github.com/AjiKunjumon/self-healing-ci/blob/test/self-healing-failure/scripts/build_failure_context.py)
 
 ```python
 def coverage_candidates(nodeid):
@@ -100,6 +102,8 @@ def group_key_for_failure(failure):
 
 The system sends this context to GitHub Copilot's cloud agent. Here's how the repair prompt is constructed:
 
+**View full source:** [scripts/propose_and_apply_patch.py](https://github.com/AjiKunjumon/self-healing-ci/blob/test/self-healing-failure/scripts/propose_and_apply_patch.py)
+
 ```python
 def build_prompt(context, diagnosis, output, source):
     return f"""Propose one minimal repair for every baseline test failure in this repository.
@@ -141,6 +145,8 @@ Let's see this in action with a real bug from the demo:
 
 ### The Buggy Code
 
+**View full source:** [app.py](https://github.com/AjiKunjumon/self-healing-ci/blob/test/self-healing-failure/app.py)
+
 ```python
 def calculate_total(items, tax_rate=0.08):
     """
@@ -156,6 +162,8 @@ def calculate_total(items, tax_rate=0.08):
 ```
 
 ### The Failing Tests
+
+**View full source:** [tests/test_app.py](https://github.com/AjiKunjumon/self-healing-ci/blob/test/self-healing-failure/tests/test_app.py)
 
 ```python
 def test_calculate_total_applies_tax_once():
@@ -188,6 +196,8 @@ def test_calculate_total_applies_tax_once_for_large_order():
 
 The failure context captured by the system:
 
+**View full source:** [failure-context.json](https://github.com/AjiKunjumon/self-healing-ci/blob/test/self-healing-failure/failure-context.json)
+
 ```json
 {
   "failed_tests": [
@@ -217,6 +227,8 @@ The failure context captured by the system:
 ### Step 4: Automated Repair Proposal
 
 The AI analyzes this context and proposes a fix via a unified diff patch:
+
+**View full source:** [ai-proposed.patch](https://github.com/AjiKunjumon/self-healing-ci/blob/test/self-healing-failure/ai-proposed.patch)
 
 ```diff
 --- a/app.py
@@ -251,7 +263,9 @@ python -m pytest -q
 
 ## Real Implementation: Patch Validation
 
-Here's how the system validates patches before creating a PR:
+Here's how the system validates patches before creating a PR. This ensures safety and prevents dangerous changes:
+
+**View full source:** [scripts/propose_and_apply_patch.py](https://github.com/AjiKunjumon/self-healing-ci/blob/test/self-healing-failure/scripts/propose_and_apply_patch.py)
 
 ```python
 def validate_patch(diff):
@@ -343,6 +357,8 @@ def test_sanitize_email_rejects_multiple_at_signs():
 ## Repair Metrics: What Really Happened
 
 Here's the actual repair metrics from the system showing multiple repair attempts:
+
+**View full source:** [repair-metrics.json](https://github.com/AjiKunjumon/self-healing-ci/blob/test/self-healing-failure/repair-metrics.json)
 
 ```json
 {
