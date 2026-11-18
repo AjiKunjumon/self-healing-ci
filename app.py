@@ -2,9 +2,13 @@ import math
 
 
 def calculate_total(items, tax_rate=0.08):
-    """Return the total price for a list of items, with tax applied once."""
+    """
+    Return the total price for a list of items.
+
+    """
     subtotal = sum(item["price"] * item["quantity"] for item in items)
-    return round(subtotal + (subtotal * tax_rate), 2)
+    total = subtotal + (subtotal * tax_rate)
+    return round(total, 2)
 
 
 def format_currency(amount):
@@ -20,7 +24,18 @@ def sanitize_email(email):
     """Return a canonicalized email address."""
     if email.count("@") != 1:
         raise ValueError("invalid email")
-    local, domain = email.split("@")
-    if not local.strip() or not domain.strip():
-        raise ValueError("invalid email")
+    local, domain = email.split("@", 1)
     return f"{local.strip().lower()}@{domain.strip().lower()}"
+
+
+def validate_phone_number(phone):
+    """
+    Validate a phone number and return it in standard format: (XXX) XXX-XXXX
+    
+    Only accepts 10-digit phone numbers (US format).
+    """
+    digits = ''.join(c for c in phone if c.isdigit())
+    if len(digits) != 10:
+        raise ValueError("Phone number must contain exactly 10 digits")
+    
+    return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
