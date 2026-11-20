@@ -1,63 +1,227 @@
-# Self-Healing CI Demo
+# Self-Healing CI - AI-Assisted Test Failure Diagnosis and Repair
 
-This portfolio experiment demonstrates GitHub Copilot cloud-agent-assisted Python test-failure diagnosis and repair proposals. GitHub Actions records pytest's JSON report and per-test coverage contexts, then invokes Copilot's Agent Tasks REST API to analyze failures and propose an application-only repair. No local model downloads or third-party model API keys are used.
+> An intelligent GitHub Actions workflow powered by GitHub Copilot cloud-agent for automated test failure diagnosis, root-cause analysis, and repair proposal generation.
 
-## What it does
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/github-self--healing--ci-blue?logo=github)](https://github.com/AjiKunjumon/self-healing-ci)
 
-1. GitHub Actions runs tests and records pytest's JSON report plus per-test coverage contexts.
-2. If tests fail, a context builder records every failure and maps tests to their test file and Python source files executed by that test. If coverage mapping is unavailable, it falls back to local imports found in the test file. Source snippets are size-limited and may be omitted when the shared budget is exhausted.
-3. The workflow sends bounded failure logs and source context to a Copilot cloud-agent task. The agent commits a structured diagnosis report to its task branch; the workflow validates and saves it as `ai-diagnosis.json`.
-4. The concise diagnosis appears in the job log and run summary; the full response and selected source context are uploaded as artifacts.
-5. The regular workflow ends red when the baseline tests fail. It does not apply code changes or open PRs.
+## Overview
 
-## Optional draft repair PR
+**Self-Healing CI** is a proof-of-concept portfolio project demonstrating how GitHub Copilot cloud-agent can automate the diagnosis of failing tests in CI/CD pipelines. This project showcases intelligent test failure analysis, root-cause detection, and AI-assisted repair proposals while maintaining human-in-the-loop validation.
 
-A separate workflow, **Self-healing CI - draft repair PR**, can generate a narrowly scoped patch and open a draft PR after the patched tests pass.
+### Key Features
 
-1. Open **Actions** and run **Self-healing CI - draft repair PR** manually.
-2. Select the branch to test. Enable `create_draft_pr` only when you want to attempt a repair proposal; it defaults to true.
-3. The workflow runs the baseline tests, diagnoses failures, and builds per-test source context.
-4. If enabled, a second Copilot cloud-agent task may propose a patch. The workflow rejects agent tasks that change files other than `app.py` and the temporary patch artifact. The patch itself must apply cleanly to the current checkout and may modify only the existing `app.py`.
-5. The workflow reruns the complete test suite against the patch and again on the proposed PR tree based on `main`. It opens a **draft** PR containing the repaired `app.py` and, when available, application test updates from the sandbox branch if both runs pass; otherwise it stops and reports the failure.
-6. Review the diff and diagnosis yourself. The workflow does not merge changes.
+- 🤖 **AI-Powered Diagnosis**: Automatic test failure analysis using GitHub Copilot cloud-agent
+- 📊 **Coverage-Aware Mapping**: Links test failures to source code using pytest coverage reports
+- 🔍 **Root-Cause Analysis**: Identifies affected Python source files and failure patterns
+- 🚀 **Draft PR Generation**: Optional automated repair proposals with draft pull request creation
+- 🛡️ **Human Review**: All agent-generated diagnostics and repairs require manual review
+- 📝 **Rich Artifact Logs**: Detailed diagnosis reports and selected source context artifacts
+- ⚡ **GitHub Native**: Integrates seamlessly with GitHub Actions and GitHub Copilot
 
-The baseline test failure remains recorded as a failed workflow even when a repair PR is opened. A passing test run is not proof of correctness. Require normal human review and branch protection before merging; configure required approvals in the repository's rulesets/branch protection settings.
+## How It Works
 
-The PR workflow is manual-only and has write permissions to create its branch and PR. Do not add `pull_request` triggers to that workflow. The normal diagnosis workflow remains separate.
+### 1. Automated Test Failure Diagnosis
 
-## Setup
+```
+GitHub Actions Test Run → Failure Detection → Copilot Cloud-Agent Analysis → Diagnosis Report
+```
 
-Create a fine-grained personal access token for this repository with **Agent tasks: read and write** permission and add it as the Actions repository secret `COPILOT_AGENT_TOKEN`. The Copilot cloud agent must be enabled and available to the token's user (Copilot Business or Enterprise). The workflow uses the GitHub Copilot Agent Tasks REST API, which is in public preview and may change.
+1. **Test Execution**: GitHub Actions runs your pytest test suite and generates JSON test reports
+2. **Coverage Mapping**: Creates a context map linking each test to affected Python source files
+3. **Agent Analysis**: Sends bounded failure logs and source context to Copilot cloud-agent for diagnosis
+4. **Report Generation**: Agent commits structured diagnosis to task branch
+5. **Result Display**: Concise diagnosis appears in job logs; full analysis available in artifacts
 
-No third-party model API key is needed. **The cloud-agent Tasks API does not accept the automatic Actions `GITHUB_TOKEN`**; the user token secret is required for API authentication. The agent's asynchronous execution time depends on GitHub and is not guaranteed to finish within two minutes. Each task is limited to four minutes and each workflow job has a ten-minute maximum.
+The workflow **does not apply code changes automatically** when baseline tests fail—it focuses on diagnosis only.
 
-## Run the demo
+### 2. Optional Draft Repair PR
 
-1. Configure `COPILOT_AGENT_TOKEN` as described above.
-2. Open **Actions** and select **Self-healing CI**.
-3. Select **Run workflow** on `test/self-healing-failure` to exercise the intentional failure; use `main` for the passing baseline.
-4. Open the run. For a failing test, inspect the diagnosis step and download the `ai-diagnosis` artifact.
+A separate manual workflow can generate and propose repairs:
 
-No local model or model download is needed. Runs with failed tests require an available Copilot cloud agent and may take several minutes.
+1. Run **Self-healing CI - draft repair PR** workflow manually
+2. Agent proposes a narrowly-scoped patch to `app.py`
+3. Workflow validates the patch and reruns all tests
+4. Opens a **draft PR** for human review—no automatic merging
+5. Requires explicit approval before any code changes
 
-## Run tests locally
+## Setup & Configuration
+
+### Prerequisites
+
+- GitHub account with Copilot plan supporting cloud-agent tasks
+- Python 3.8+
+- Pytest with coverage and JSON report plugins
+
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/AjiKunjumon/self-healing-ci.git
+   cd self-healing-ci
+   ```
+
+2. **Create a fine-grained Personal Access Token**:
+   - Go to [GitHub Settings → Developer Settings → Personal Access Tokens](https://github.com/settings/tokens?type=beta)
+   - Create a new token with **Agent tasks: read and write** permission
+   - Scope it to this repository
+
+3. **Add token to repository secrets**:
+   - Go to your repository → Settings → Secrets and Variables → Actions
+   - Create a new secret named `COPILOT_AGENT_TOKEN`
+   - Paste your personal access token
+
+   > ⚠️ **Note**: The cloud-agent Tasks API does not accept the automatic `GITHUB_TOKEN`. A personal access token is required.
+
+4. **Install dependencies**:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   python -m pip install -r requirements.txt
+   ```
+
+## Running the Demo
+
+### Via GitHub Actions
+
+1. Navigate to **Actions** → **Self-healing CI** workflow
+2. Click **Run workflow**
+3. Select `test/self-healing-failure` branch to see the diagnosis in action
+4. Wait for the workflow to complete
+5. Check the job log for the concise diagnosis
+6. Download `ai-diagnosis` artifact for the full analysis
+
+### Generate Draft Repair PR
+
+1. Go to **Actions** → **Self-healing CI - draft repair PR**
+2. Click **Run workflow** and select a branch
+3. Enable `create_draft_pr` to propose repairs (default: enabled)
+4. The workflow will:
+   - Run baseline tests and diagnose failures
+   - Generate a repair proposal
+   - Rerun the full test suite
+   - Open a draft PR for review
+
+### Run Tests Locally
 
 ```bash
+# Activate virtual environment
 python -m venv .venv
 source .venv/bin/activate
+
+# Install dependencies
 python -m pip install -r requirements.txt
-python -m pytest -q --cov=. --cov-context=test --cov-report= --json-report --json-report-file=pytest-report.json
+
+# Run tests with coverage and generate reports
+python -m pytest -q \
+  --cov=. \
+  --cov-context=test \
+  --cov-report= \
+  --json-report \
+  --json-report-file=pytest-report.json
+
+# Build failure context (requires COPILOT_AGENT_TOKEN for diagnosis)
 python scripts/build_failure_context.py
 ```
 
-The Python tests and failure-context builder run locally without Copilot credentials. To run diagnosis or patch-proposal scripts locally, set `COPILOT_AGENT_TOKEN` to a user-to-server token with Agent tasks read/write access, and set `GITHUB_REPOSITORY`, `GITHUB_REF_NAME`, and `GITHUB_SHA` to a repository and branch/commit the token can access. These scripts create cloud-agent tasks and fetch their resulting branches; they are not offline commands.
+## Project Structure
 
-## Safety and limitations
+```
+self-healing-ci/
+├── .github/workflows/
+│   ├── self-healing-ci.yml          # Main diagnosis workflow
+│   └── self-healing-ci-draft-pr.yml # Repair proposal workflow
+├── scripts/
+│   └── build_failure_context.py     # Failure context builder
+├── tests/
+│   └── test_*.py                    # Test suite
+├── app.py                            # Application code
+├── requirements.txt                  # Python dependencies
+└── README.md                          # This file
+```
 
-- Only repository Python files associated with failed tests are included, with size limits. Review artifacts before sharing them; source code can contain sensitive material.
-- Coverage narrows candidate files but cannot prove causality. Import-based fallback is approximate.
-- The diagnosis and patch can be wrong. Confidence is an agent-generated label, not a calibrated probability.
-- Patch generation can be disabled with the `create_draft_pr` input and is limited to `app.py`. The workflow validates the task's changed-file set and patch paths, checks that the patch applies cleanly, and runs all tests before creating a draft PR. All changes still require human review.
-- The repair workflow requires a user-to-server token with Agent tasks read/write access and a Copilot plan that supports the cloud agent. Cloud-agent task duration and API availability are outside the workflow's control.
-- The normal `pull_request` workflow skips diagnosis when the token is unavailable, including for fork pull requests where GitHub withholds repository secrets.
-- Copilot tasks create remote working branches for their results. Those branches are not merged automatically; review and clean them up in the repository when appropriate.
+## Safety & Limitations
+
+### Security Considerations
+- ✅ Only Python files related to failed tests are included (with size limits)
+- ✅ All generated diagnostics and repairs require human review
+- ✅ No automatic code merging—draft PRs only
+- ✅ Repository secrets are protected from fork pull requests
+
+### Technical Limitations
+- Coverage mapping identifies candidate files but cannot guarantee causality
+- Import-based fallback for coverage is approximate
+- Agent-generated diagnostics and repairs can be incorrect
+- Agent confidence is a label, not a calibrated probability
+- Patch proposals are limited to `app.py` with strict validation
+
+### Requirements
+- Requires Copilot plan supporting cloud-agent tasks
+- Cloud-agent availability and performance are outside repository control
+- Working branches created by agents should be reviewed and cleaned up manually
+
+## Workflow Branches
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Default branch with passing tests |
+| `test/self-healing-failure` | Demo branch with intentional test failure |
+
+Switch branches to see diagnosis in action on the failure branch.
+
+## Troubleshooting
+
+### Diagnosis Not Running
+- Verify `COPILOT_AGENT_TOKEN` is set in repository secrets
+- Check that your GitHub account has Copilot plan with cloud-agent access
+- Ensure the token has "Agent tasks: read and write" permission
+
+### Coverage Mapping Issues
+- Verify pytest coverage plugins are installed: `pytest-cov`, `pytest-cov-context`
+- Ensure coverage is enabled in pytest configuration
+- Check that test files exercise the source code properly
+
+### Repair PR Not Created
+- Verify `create_draft_pr` input is enabled
+- Check that the agent-proposed patch passes all tests
+- Review the workflow log for validation errors
+
+## Technologies & Tools
+
+- **GitHub Actions** - CI/CD Workflow automation
+- **GitHub Copilot** - AI-assisted code analysis
+- **Python** - Application and test language
+- **pytest** - Testing framework
+- **pytest-cov** - Code coverage analysis
+- **pytest-json-report** - Structured test reporting
+
+## Contributing
+
+This is a portfolio project demonstrating AI-assisted CI concepts. For feedback, issues, or improvement suggestions:
+
+1. Open an **Issue** to report bugs or suggest features
+2. Check existing discussions before opening new ones
+3. For significant changes, open a draft PR for discussion
+
+## License
+
+This project is provided as-is for educational and demonstration purposes.
+
+## Learning Resources
+
+For more on the technologies used:
+- [GitHub Copilot Documentation](https://docs.github.com/en/copilot)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [pytest Documentation](https://docs.pytest.org/)
+- [Code Coverage with pytest](https://pytest-cov.readthedocs.io/)
+
+## Author
+
+[AjiKunjumon](https://github.com/AjiKunjumon) - Portfolio project exploring AI-assisted CI/CD workflows
+
+---
+
+**⭐ If this project interests you, please consider starring it!**
+
+Questions? Feel free to open an issue or discussion.
