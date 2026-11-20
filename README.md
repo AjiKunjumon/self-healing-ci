@@ -41,12 +41,29 @@ graph TD
     H --> I["👁️ Human Review Required"]
     I --> J["✨ No Auto-Merge - Manual Approval Only"]
     
-    style A fill:#ff6b6b
-    style B fill:#4ecdc4
-    style E fill:#ffd93d
-    style I fill:#95e1d3
-    style J fill:#a8e6cf
+    style A fill:#ff6b6b,color:#fff,stroke:#c92a2a,stroke-width:2px
+    style B fill:#4ecdc4,color:#fff,stroke:#0d9488,stroke-width:2px
+    style C fill:#4ecdc4,color:#fff,stroke:#0d9488,stroke-width:2px
+    style D fill:#4ecdc4,color:#fff,stroke:#0d9488,stroke-width:2px
+    style E fill:#ffd93d,color:#000,stroke:#f08c00,stroke-width:2px
+    style F fill:#ffd93d,color:#000,stroke:#f08c00,stroke-width:2px
+    style G fill:#51cf66,color:#fff,stroke:#2f9e44,stroke-width:2px
+    style H fill:#51cf66,color:#fff,stroke:#2f9e44,stroke-width:2px
+    style I fill:#a8e6cf,color:#000,stroke:#2d6a4f,stroke-width:2px
+    style J fill:#a8e6cf,color:#000,stroke:#2d6a4f,stroke-width:2px
 ```
+
+**Workflow Steps:**
+1. 📌 Test failure detected
+2. 🔄 GitHub Actions runs test suite
+3. 📊 Coverage reports and JSON generated
+4. 🗂️ Failure context builder processes results
+5. 🤖 Copilot cloud-agent analyzes failures
+6. 📋 Diagnosis report created
+7. ✅ Report committed to task branch
+8. 📤 Artifacts uploaded to job
+9. 👁️ Human review in job logs
+10. ✨ No automatic merging - manual approval only
 
 ### Draft Repair PR Workflow
 
@@ -66,12 +83,37 @@ graph TD
     L -->|No| M["🗑️ Discard Draft"]
     L -->|Yes| N["✅ Merge & Close"]
     
-    style A fill:#a8e6cf
-    style E fill:#ffd93d
-    style J fill:#95e1d3
-    style K fill:#ff6b6b
-    style N fill:#95e1d3
+    style A fill:#a8e6cf,color:#000,stroke:#2d6a4f,stroke-width:2px
+    style B fill:#4ecdc4,color:#fff,stroke:#0d9488,stroke-width:2px
+    style C fill:#4ecdc4,color:#fff,stroke:#0d9488,stroke-width:2px
+    style D fill:#51cf66,color:#fff,stroke:#2f9e44,stroke-width:2px
+    style E fill:#ffd93d,color:#000,stroke:#f08c00,stroke-width:2px
+    style F fill:#ffd93d,color:#000,stroke:#f08c00,stroke-width:2px
+    style G fill:#4ecdc4,color:#fff,stroke:#0d9488,stroke-width:2px
+    style H fill:#4ecdc4,color:#fff,stroke:#0d9488,stroke-width:2px
+    style I fill:#ff6b6b,color:#fff,stroke:#c92a2a,stroke-width:2px
+    style J fill:#51cf66,color:#fff,stroke:#2f9e44,stroke-width:2px
+    style K fill:#a8e6cf,color:#000,stroke:#2d6a4f,stroke-width:2px
+    style L fill:#a8e6cf,color:#000,stroke:#2d6a4f,stroke-width:2px
+    style M fill:#ff6b6b,color:#fff,stroke:#c92a2a,stroke-width:2px
+    style N fill:#51cf66,color:#fff,stroke:#2f9e44,stroke-width:2px
 ```
+
+**Workflow Steps:**
+1. 👤 Manually trigger repair workflow
+2. 🧪 Run baseline tests
+3. Test status check (pass/fail decision point)
+4. ✅ If passing: no repairs needed
+5. 🤖 If failing: agent proposes patch
+6. ✔️ Validate patch file changes
+7. 🧪 Rerun complete test suite with patch
+8. Tests pass check (validation decision point)
+9. ❌ If fails: patch rejected
+10. 📝 If passes: open draft PR
+11. 👨‍💻 Human review required
+12. Approve check (merge decision point)
+13. 🗑️ If rejected: discard draft
+14. ✅ If approved: merge and close
 
 ## How It Works
 
@@ -264,7 +306,7 @@ This is a portfolio project demonstrating AI-assisted CI concepts. For feedback,
 
 ## License
 
-This project is provided as-is for educational and demonstration purposes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Learning Resources
 
