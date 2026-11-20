@@ -5,6 +5,11 @@
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![GitHub](https://img.shields.io/badge/github-self--healing--ci-blue?logo=github)](https://github.com/AjiKunjumon/self-healing-ci)
+[![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue?logo=github-actions)](https://github.com/features/actions)
+[![Copilot AI](https://img.shields.io/badge/AI-GitHub%20Copilot-orange?logo=github-copilot)](https://github.com/features/copilot)
+[![Testing](https://img.shields.io/badge/testing-pytest-green?logo=pytest)](https://pytest.org/)
+[![Code Coverage](https://img.shields.io/badge/coverage-pytest--cov-brightgreen)](https://pytest-cov.readthedocs.io/)
+[![Status](https://img.shields.io/badge/status-active-success)](https://github.com/AjiKunjumon/self-healing-ci)
 
 ## Overview
 
@@ -20,6 +25,54 @@
 - 📝 **Rich Artifact Logs**: Detailed diagnosis reports and selected source context artifacts
 - ⚡ **GitHub Native**: Integrates seamlessly with GitHub Actions and GitHub Copilot
 
+## Workflow Architecture
+
+### Diagnosis Workflow
+
+```mermaid
+graph TD
+    A["📌 Test Failure Triggered"] --> B["🔄 GitHub Actions Runs Tests"]
+    B --> C["📊 Coverage & JSON Report Generated"]
+    C --> D["🗂️ Build Failure Context"]
+    D --> E["🤖 Copilot Cloud-Agent Analysis"]
+    E --> F["📋 Diagnosis Report Created"]
+    F --> G["✅ Report Committed to Task Branch"]
+    G --> H["📤 Artifacts Uploaded"]
+    H --> I["👁️ Human Review Required"]
+    I --> J["✨ No Auto-Merge - Manual Approval Only"]
+    
+    style A fill:#ff6b6b
+    style B fill:#4ecdc4
+    style E fill:#ffd93d
+    style I fill:#95e1d3
+    style J fill:#a8e6cf
+```
+
+### Draft Repair PR Workflow
+
+```mermaid
+graph TD
+    A["👤 Manual Workflow Trigger"] --> B["🧪 Run Baseline Tests"]
+    B --> C{Test Status?}
+    C -->|Pass| D["✅ No Repairs Needed"]
+    C -->|Fail| E["🤖 Agent Proposes Patch"]
+    E --> F["✔️ Validate Patch Changes"]
+    F --> G["🧪 Rerun Full Test Suite"]
+    G --> H{Tests Pass?}
+    H -->|No| I["❌ Patch Rejected"]
+    H -->|Yes| J["📝 Open Draft PR"]
+    J --> K["👨‍💻 Human Review & Decision"]
+    K --> L{Approve?}
+    L -->|No| M["🗑️ Discard Draft"]
+    L -->|Yes| N["✅ Merge & Close"]
+    
+    style A fill:#a8e6cf
+    style E fill:#ffd93d
+    style J fill:#95e1d3
+    style K fill:#ff6b6b
+    style N fill:#95e1d3
+```
+
 ## How It Works
 
 ### 1. Automated Test Failure Diagnosis
@@ -27,6 +80,8 @@
 ```
 GitHub Actions Test Run → Failure Detection → Copilot Cloud-Agent Analysis → Diagnosis Report
 ```
+
+**Step-by-step process:**
 
 1. **Test Execution**: GitHub Actions runs your pytest test suite and generates JSON test reports
 2. **Coverage Mapping**: Creates a context map linking each test to affected Python source files
@@ -189,12 +244,14 @@ Switch branches to see diagnosis in action on the failure branch.
 
 ## Technologies & Tools
 
-- **GitHub Actions** - CI/CD Workflow automation
-- **GitHub Copilot** - AI-assisted code analysis
-- **Python** - Application and test language
-- **pytest** - Testing framework
-- **pytest-cov** - Code coverage analysis
-- **pytest-json-report** - Structured test reporting
+| Technology | Purpose |
+|-----------|---------|
+| **GitHub Actions** | CI/CD Workflow automation |
+| **GitHub Copilot** | AI-assisted code analysis |
+| **Python** | Application and test language |
+| **pytest** | Testing framework |
+| **pytest-cov** | Code coverage analysis |
+| **pytest-json-report** | Structured test reporting |
 
 ## Contributing
 
@@ -203,6 +260,7 @@ This is a portfolio project demonstrating AI-assisted CI concepts. For feedback,
 1. Open an **Issue** to report bugs or suggest features
 2. Check existing discussions before opening new ones
 3. For significant changes, open a draft PR for discussion
+4. See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines
 
 ## License
 
@@ -215,6 +273,7 @@ For more on the technologies used:
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [pytest Documentation](https://docs.pytest.org/)
 - [Code Coverage with pytest](https://pytest-cov.readthedocs.io/)
+- [Mermaid Diagram Syntax](https://mermaid.js.org/)
 
 ## Author
 
